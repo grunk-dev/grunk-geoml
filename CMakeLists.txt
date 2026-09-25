@@ -54,6 +54,20 @@ option(GRUNK_GEOML_GENERATE_CODE "Regenerate geoml bindings using the codegen to
 # variant, so there's no "just point find_package at a different prefix" shortcut the
 # way ADOCCT_DIR already is for OpenCASCADE.
 option(GRUNK_GEOML_ENABLE_AD "Build against geoml's feature/autodiff branch + an AD-enabled OCCT fork (adOCCT) instead of stock geoml/OCCT - requires ADOCCT_DIR and AD_GEOML_DIR, see README.md's \"Algorithmic differentiation (AD)\"" OFF)
+
+# geoml's own install prefix - explicit cache var + NO_DEFAULT_PATH (see the actual
+# find_package(geoml) call below), not a plain CMAKE_PREFIX_PATH entry. geoml has no
+# conda/pixi package *today*, so this is currently belt-and-suspenders - but that's
+# expected to change, possibly soon, and once geoml itself ships as a conda package,
+# a plain CMAKE_PREFIX_PATH-based find_package(geoml) could silently resolve to that
+# system-provided geoml instead of this project's own from-source build
+# (scripts/install_geoml.cmake) - exactly the ambiguity ADOCCT_DIR/NO_DEFAULT_PATH
+# below already guards against for OpenCASCADE. Defaults to where
+# scripts/install_geoml.cmake installs it, so a plain `pixi run configure` still
+# works with no extra flags; pixi.toml's own `configure` task also passes this
+# explicitly, matching AD_GEOML_DIR's own explicit-flag convention below.
+set(GEOML_DIR "${CMAKE_SOURCE_DIR}/.deps/geoml" CACHE PATH "Install prefix of geoml (see scripts/install_geoml.cmake)")
+
 if(GRUNK_GEOML_ENABLE_AD)
     set(ADOCCT_DIR "" CACHE PATH "Install prefix of adOCCT (dlr-sp/adOCCT), built with -DUSE_ADOLC=ON - same install grunk-occt's own AD build should be pointed at")
     if(NOT ADOCCT_DIR)
@@ -121,15 +135,19 @@ endif()
 
 # --- geoml: like grunk, a pre-built, pre-installed dependency this project
 # bootstraps itself (scripts/install_geoml.cmake / scripts/install_adgeoml.sh) rather
-# than a conda/pixi binary package (unlike OCCT, geoml ships no such package in
-# either variant) - resolved via CMAKE_PREFIX_PATH (pixi.toml's own activation.env
-# points this at .deps/geoml for the default environment, .deps/adgeoml for the ad
-# environment; the two never coexist on one environment's own CMAKE_PREFIX_PATH, so
-# no NO_DEFAULT_PATH override is needed here the way ADOCCT_DIR needs one above).
-# Exports a plain (non-namespaced) `geoml` imported target - confirmed against
-# grunk's own cad_autodiff example prototype, which links it the same way
-# (`target_link_libraries(... geoml)`, no `geoml::` prefix).
-find_package(geoml CONFIG REQUIRED)
+# than a conda/pixi binary package. Resolved via an explicit PATHS + NO_DEFAULT_PATH
+# (GEOML_DIR for the plain build, AD_GEOML_DIR for the AD one - set above), the same
+# defense-in-depth ADOCCT_DIR uses for OpenCASCADE, not a plain CMAKE_PREFIX_PATH
+# lookup - see GEOML_DIR's own comment above for why (geoml has no conda/pixi package
+# today, but that's expected to change, and this avoids silently picking up a
+# system-provided one later). Exports a plain (non-namespaced) `geoml` imported
+# target - confirmed against grunk's own cad_autodiff example prototype, which links
+# it the same way (`target_link_libraries(... geoml)`, no `geoml::` prefix).
+if(GRUNK_GEOML_ENABLE_AD)
+    find_package(geoml CONFIG REQUIRED PATHS "${AD_GEOML_DIR}" NO_DEFAULT_PATH)
+else()
+    find_package(geoml CONFIG REQUIRED PATHS "${GEOML_DIR}" NO_DEFAULT_PATH)
+endif()
 get_target_property(GEOML_INCLUDE_DIR geoml INTERFACE_INCLUDE_DIRECTORIES)
 
 # --- code generator: opt-in, same rationale as grunk-occt's own identical block
