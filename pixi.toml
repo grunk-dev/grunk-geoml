@@ -1,0 +1,208 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+[workspace]
+name = "grunk-geoml"
+version = "0.1.0"
+description = "geoml plugin for grunk"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "win-64"]
+
+[dependencies]
+# Same shape as grunk-occt's own [dependencies] - `occt` deliberately kept out of
+# here too (see [feature.occt.dependencies] below), same reasoning: keep it fully out
+# of the `ad` environment's own package set.
+#
+# geoml's own upstream environment.yml (checked directly, not assumed) also lists
+# `qt` (needed only to build tiglviewer, a GUI tool this plugin never builds) and
+# pins `opencascade=7.6.2` via its conanfile.py - neither followed here: this plugin
+# builds geoml from source via plain CMake against whichever OCCT this project
+# itself resolves (scripts/install_geoml.cmake, bypassing conan entirely), the same
+# approach already proven working by grunk's own cad_autodiff example prototype
+# (its "stage 2" geoml_plugin FetchContent's geoml's `main` branch built against
+# conda-forge OCCT, no conan, no version pin drama) - so this environment's `occt`
+# version is grunk-occt's own (7.9.3), not geoml's conan-pinned 7.6.2. Not yet
+# build-verified end to end (see DESIGN.md) - flagged here in case geoml's own
+# source needs an OCCT-version compatibility patch the way its AD variant did
+# against adOCCT (see grunk's cad_autodiff example README's own
+# patches/geoml-feature-autodiff-occt79.patch for that precedent).
+cmake = "*"
+ninja = "*"
+lua = "*"
+sol2 = "*"
+taskflow = "*"
+yaml-cpp = "*"
+libparametric = "*"
+python = ">=3.9"
+gtest = "*"
+pytest = "*"
+
+[pypi-dependencies]
+# Same pin as grunk-occt's own [pypi-dependencies] - see its comment for the full
+# rationale (this is also the sole source of the `generate_code` task's runtime
+# needs, grunk.codegen's own libclang/pyyaml dependencies).
+grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "583da89f0184ef6333000c45573da65a9dd551d0" }
+
+# Stock OCCT - only pulled in by the `default` environment (see [environments]),
+# same as grunk-occt's own identical section.
+[feature.occt.dependencies]
+occt = { version = "==7.9.3", build = "novtk_*" }
+
+# AD-enabled build - Linux-only, same reasoning as grunk-occt's own [feature.ad]
+# (full isolation via `no-default-feature = true`, not implicit inheritance - see
+# that repo's own, longer comment for why the implicit version silently broke
+# `pixi run build` for the default environment).
+[feature.ad]
+platforms = ["linux-64"]
+
+[feature.ad.dependencies]
+cmake = "*"
+ninja = "*"
+lua = "*"
+sol2 = "*"
+taskflow = "*"
+yaml-cpp = "*"
+libparametric = "*"
+python = ">=3.9"
+gtest = "*"
+pkg-config = "*"
+
+[feature.ad.pypi-dependencies]
+grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "583da89f0184ef6333000c45573da65a9dd551d0" }
+
+[feature.ad.activation.env]
+# .deps/grunk-ad, .deps/adgeoml (this plugin's own AD-enabled geoml install, built by
+# scripts/install_adgeoml.sh - NOT .deps/geoml, the default environment's stock
+# build) - same reasoning as grunk-occt's own [feature.ad.activation.env]: this
+# environment's grunk/geoml installs must be built against *this* conda
+# environment's own toolchain, not `default`'s.
+CMAKE_PREFIX_PATH = "$CONDA_PREFIX:$PIXI_PROJECT_ROOT/.deps/grunk-ad:$PIXI_PROJECT_ROOT/.deps/adgeoml"
+SKBUILD_CMAKE_DEFINE = "GRUNK_WITH_TASKFLOW=OFF"
+# .deps/adolc and .deps/adocct - see grunk-occt's own identical comment for why this
+# is scoped to the `ad` feature's own activation specifically (a real, previously-hit
+# bug otherwise: a plain, non-AD geoml_plugin.so could dlopen and resolve its OCCT
+# symbols against adOCCT's differently-built libraries instead of conda-forge's stock
+# `occt` package if these were on every task's LD_LIBRARY_PATH).
+LD_LIBRARY_PATH = "$PIXI_PROJECT_ROOT/.deps/adolc/lib64:$PIXI_PROJECT_ROOT/.deps/adolc/lib:$PIXI_PROJECT_ROOT/.deps/adocct/lib64:$PIXI_PROJECT_ROOT/.deps/adocct/lib:$LD_LIBRARY_PATH"
+PKG_CONFIG_PATH = "$PIXI_PROJECT_ROOT/.deps/adolc/lib64/pkgconfig:$PIXI_PROJECT_ROOT/.deps/adolc/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+[target.win-64.activation.env]
+CMAKE_PREFIX_PATH = "%CONDA_PREFIX%/Library;%PIXI_PROJECT_ROOT%/.deps/grunk;%PIXI_PROJECT_ROOT%/.deps/geoml"
+SKBUILD_CMAKE_DEFINE = "GRUNK_WITH_TASKFLOW=OFF"
+
+[target.linux-64.activation.env]
+# .deps/grunk, .deps/geoml - where scripts/install_grunk.cmake and
+# scripts/install_geoml.cmake install their respective dependencies (see
+# CMakeLists.txt's own find_package(grunk REQUIRED)/find_package(geoml CONFIG
+# REQUIRED) comments) - appended after $CONDA_PREFIX so CMake's own config-mode
+# search still checks the conda environment first for everything else.
+CMAKE_PREFIX_PATH = "$CONDA_PREFIX:$PIXI_PROJECT_ROOT/.deps/grunk:$PIXI_PROJECT_ROOT/.deps/geoml"
+SKBUILD_CMAKE_DEFINE = "GRUNK_WITH_TASKFLOW=OFF"
+
+[target.osx-64.activation.env]
+CMAKE_PREFIX_PATH = "$CONDA_PREFIX:$PIXI_PROJECT_ROOT/.deps/grunk:$PIXI_PROJECT_ROOT/.deps/geoml"
+# See grunk-occt's own identical override for why (std::to_chars needs macOS 13.3+ -
+# a grunk-core, not a geoml-specific, requirement, inherited unchanged here).
+SKBUILD_CMAKE_DEFINE = "GRUNK_WITH_TASKFLOW=OFF;CMAKE_OSX_DEPLOYMENT_TARGET=13.3"
+
+[tasks]
+install_grunk = { cmd = "cmake -P scripts/install_grunk.cmake", description = "Clone, build, and install grunk into .deps/grunk (idempotent)." }
+
+install_geoml = { cmd = "cmake -P scripts/install_geoml.cmake", description = "Clone, build, and install geoml into .deps/geoml (idempotent)." }
+
+configure = { cmd = [
+    "cmake",
+    "-G", "Ninja",
+    "-S", ".",
+    "-B", "build",
+    "-D", "CMAKE_INSTALL_PREFIX=build/install",
+    "-D", "CMAKE_BUILD_TYPE={{ config }}",
+    "-D", "CMAKE_EXPORT_COMPILE_COMMANDS=ON",
+], args = [
+    { "arg" = "config", "default" = "Release" }
+], depends-on = ["install_grunk", "install_geoml"], description = "Configure the CMake build." }
+
+build = { cmd = "cmake --build build --parallel", description = "Build the plugin and test harness." }
+
+generate_code = { cmd = "cmake --build build --target generate_code", description = "Regenerate geoml bindings (requires -D GRUNK_GEOML_GENERATE_CODE=ON at configure time)." }
+
+test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], description = "Run the test harness." }
+
+test_hooks = { cmd = "pytest -xvs tests/python", description = "Run this plugin's own codegen/hooks.py unit tests (not added yet - see DESIGN.md)." }
+
+install = { cmd = "cmake --install build", depends-on = ["build"], description = "Install geoml_plugin into build/install (CMAKE_INSTALL_PREFIX, set by the configure task)." }
+
+[tasks.all]
+depends-on = ["configure", "build", "test", "test_hooks", "run_examples"]
+description = "Configure, build, test, test_hooks, and run the examples."
+
+# Same platform-specific-filename pattern as grunk-occt's own run_examples tasks -
+# examples/ doesn't exist yet (see DESIGN.md), so this task is a placeholder until
+# Step 6 adds it.
+[target.linux-64.tasks]
+run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+
+[target.osx-64.tasks]
+run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.dylib", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+
+[target.win-64.tasks]
+run_examples = { cmd = "python examples/run_example.py build/geoml_plugin.dll", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+
+# AD-enabled build/test tasks - same shape as grunk-occt's own [feature.ad.tasks].
+[feature.ad.tasks]
+install_grunk = { cmd = "cmake -D GRUNK_INSTALL_NAME=grunk-ad -P scripts/install_grunk.cmake", description = "Clone, build, and install grunk into .deps/grunk-ad (idempotent)." }
+
+install_adolc = { cmd = "bash scripts/install_adolc.sh", description = "Download, build, and install ADOL-C 2.7.2 into .deps/adolc (idempotent)." }
+
+install_adocct = { cmd = "bash scripts/install_adocct.sh", depends-on = ["install_adolc"], description = "Clone and build adOCCT against the ADOL-C install above, into .deps/adocct (idempotent) - same script/install grunk-occt's own AD build uses; point both at the same .deps/adocct." }
+
+install_adgeoml = { cmd = "bash scripts/install_adgeoml.sh", depends-on = ["install_adolc", "install_adocct"], description = "Clone and build geoml's feature/autodiff branch against the adOCCT install above, into .deps/adgeoml (idempotent)." }
+
+configure = { cmd = [
+    "cmake",
+    "-G", "Ninja",
+    "-S", ".",
+    "-B", "build-ad",
+    "-D", "CMAKE_INSTALL_PREFIX=build-ad/install",
+    "-D", "CMAKE_BUILD_TYPE={{ config }}",
+    "-D", "CMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    "-D", "GRUNK_GEOML_ENABLE_AD=ON",
+    "-D", "ADOCCT_DIR=.deps/adocct",
+    "-D", "AD_GEOML_DIR=.deps/adgeoml",
+], args = [
+    { "arg" = "config", "default" = "Release" }
+], depends-on = ["install_grunk", "install_adocct", "install_adgeoml"], description = "Configure the AD-enabled build (build-ad/)." }
+
+build = { cmd = "cmake --build build-ad --parallel", description = "Build the AD-enabled plugin and test harness." }
+
+test = { cmd = "ctest --test-dir build-ad --output-on-failure", depends-on = ["build"], description = "Run the AD-enabled test harness." }
+
+install = { cmd = "cmake --install build-ad", depends-on = ["build"], description = "Install geoml_plugin and adolc_plugin into build-ad/install." }
+
+run_examples = { cmd = "python examples/run_example.py build-ad/libgeoml_plugin.so build-ad/_deps/grunk-adolc-build/libadolc_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md), including the AD derivative check." }
+
+[feature.ad.tasks.all]
+depends-on = ["configure", "build", "test", "run_examples"]
+description = "Bootstrap ADOL-C/adOCCT/AD-geoml if needed, then configure, build, test, and run the examples for the AD-enabled variant."
+
+[environments]
+default = { features = ["occt"] }
+ad = { features = ["ad"], no-default-feature = true }
+tools = { features = ["tools"], no-default-feature = true }
+
+[feature.tools.dependencies]
+python = "*"
+
+[feature.tools.pypi-dependencies]
+reuse = "*"
+
+[feature.tools.tasks]
+_reuse = { cmd = "reuse {{ sub_cmd }}", args = [
+    { "arg" = "sub_cmd", "default" = "lint" },
+] }
+
+[tasks.reuse]
+args = [{ "arg" = "sub_cmd", "default" = "lint" }]
+depends-on = [{ task = "_reuse", environment = "tools", args = ["{{ sub_cmd }}"] }]
+description = "Run the REUSE license-compliance tool. sub_cmd selects the REUSE subcommand (e.g. lint, spdx) - defaults to lint."

@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+version = 1
+
+## Annotations in this file provide REUSE metadata for specific paths.
+## pixi.lock is an auto-generated, tracked lockfile. To avoid reuse
+## complaining about missing per-file headers while keeping the file in
+## version control, provide its licensing info here.
+
+[[annotations]]
+path = "pixi.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jan Kleinert <jan.kleinert@dlr.de>"
+SPDX-License-Identifier = "MPL-2.0"
+
+## generated/translation_units.txt is plain data (one line per translation
+## unit, read via CMake's file(STRINGS ...) - see CMakeLists.txt) with no
+## comment syntax of its own to carry an SPDX header without corrupting that
+## parse. Not present yet (generated/ is created in a later plan step - see
+## DESIGN.md) but annotated here now, matching grunk-occt's own REUSE.toml,
+## so it doesn't get forgotten once that step lands.
+[[annotations]]
+path = "generated/translation_units.txt"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jan Kleinert <jan.kleinert@dlr.de>"
+SPDX-License-Identifier = "MPL-2.0"

@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# 3-platform CI matrix, same shape as grunk-occt's own ci.yml. AD-enabled builds
+# (build-and-test-ad below) are Linux-only, matching pixi.toml's own `ad` feature -
+# building ADOL-C/adOCCT/geoml's AD variant from source on macOS/Windows was never
+# attempted.
+#
+# NOTE: this workflow is not yet expected to pass - this repository is scaffolding
+# only so far (no codegen/config.yml, no generated/, no src/geoml_plugin.cpp, no
+# tests/ - see DESIGN.md). It's added now, matching grunk-occt's own convention of
+# having CI from the start, so it starts reporting real status as soon as those
+# pieces land rather than needing a separate "add CI" step later.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Visual Studio shell
+        if: startsWith(matrix.os, 'windows')
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          cache: true
+
+      - name: Cache grunk
+        uses: actions/cache@v6
+        with:
+          path: .deps/grunk
+          key: ${{ runner.os }}-grunk-${{ hashFiles('scripts/install_grunk.cmake') }}
+
+      - name: Cache geoml
+        uses: actions/cache@v6
+        with:
+          path: .deps/geoml
+          key: ${{ runner.os }}-geoml-${{ hashFiles('scripts/install_geoml.cmake') }}
+
+      - name: Install grunk
+        run: pixi run -e default install_grunk
+
+      - name: Install geoml
+        run: pixi run -e default install_geoml
+
+      - name: Configure
+        run: pixi run -e default configure Release
+
+      - name: Build
+        run: pixi run -e default build
+
+      - name: Test
+        run: pixi run -e default test
+
+      - name: Run examples
+        run: pixi run -e default run_examples
+
+      - name: Install
+        run: pixi run -e default install
+
+  build-and-test-ad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install autotools
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          cache: true
+
+      - name: Cache ADOL-C/adOCCT/grunk/AD-geoml
+        uses: actions/cache@v6
+        with:
+          path: |
+            .deps/adolc
+            .deps/adocct
+            .deps/grunk-ad
+            .deps/adgeoml
+          key: ${{ runner.os }}-adolc-adocct-grunk-ad-adgeoml-${{ hashFiles('scripts/install_adolc.sh', 'scripts/install_adocct.sh', 'scripts/install_adgeoml.sh', 'scripts/install_grunk.cmake') }}
+
+      - name: Install grunk
+        run: pixi run -e ad install_grunk
+
+      - name: Install ADOL-C
+        run: pixi run -e ad install_adolc
+
+      - name: Install adOCCT
+        run: pixi run -e ad install_adocct
+
+      - name: Install AD-enabled geoml
+        run: pixi run -e ad install_adgeoml
+
+      - name: Configure
+        run: pixi run -e ad configure Release
+
+      - name: Build
+        run: pixi run -e ad build
+
+      - name: Test
+        run: pixi run -e ad test
+
+      - name: Run examples
+        run: pixi run -e ad run_examples
+
+      - name: Install
+        run: pixi run -e ad install
