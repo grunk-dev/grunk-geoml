@@ -73,10 +73,36 @@ inline void register_transform_extras(grunk::plugin_namespace& ns)
             [](const geoml::Transform& other) { return geoml::Transform(other); }
         )
         // operator() overload set - see this file's own top comment for why the
-        // generator can't reach this. Lua usage: `local moved_shape = xf(shape)`,
-        // `local moved_pnt = xf(pt)`, etc. - a Transform instance is called directly,
-        // exactly like in C++.
+        // generator can't reach this. Registered twice, under two different keys,
+        // for two different calling contexts:
+        //
+        // - sol::meta_function::call: a Transform instance called directly, exactly
+        //   like in C++ - `local moved_pnt = xf(pt)`. Works fine in a plain
+        //   grunk::state::create_env() environment (confirmed live), but NOT inside
+        //   a real recipe's steps: block (state::read(), grunk::recipe) - found the
+        //   hard way porting examples/wing_loft.grr.yml: "attempt to call a
+        //   sol.grunk::Feature<...> value". grunk's own decorated/parametric
+        //   environment (create_decorated_environment, wrapping every value in a
+        //   Feature<object> for dependency tracking) intercepts named function/
+        //   method calls to build Action nodes, but does not forward Lua's __call
+        //   metamethod on an arbitrary userdata through that wrapping at all - a
+        //   real, generic grunk-core/dynamic-layer gap, not something fixable from
+        //   this plugin's own registration code. Kept anyway - genuinely useful
+        //   for a plain (non-recipe) script or a C++ test harness like this
+        //   plugin's own tests/test_transformations.cpp.
+        // - a plain "apply" member function, identical overload set, callable via
+        //   ordinary colon syntax (`local moved_pnt = xf:apply(pt)`) - a normal
+        //   method call, which *does* work inside a recipe's decorated environment
+        //   (every other example throughout this whole project already relies on
+        //   plain method calls working there). This is what examples/wing_loft.grr.yml
+        //   and examples/load_carrier.grr.yml actually use.
         .add_member_function(sol::meta_function::call, sol::overload(
+            [](geoml::Transform const& self, const TopoDS_Shape& shape) -> TopoDS_Shape { return self(shape); },
+            [](geoml::Transform const& self, const gp_Pnt& point) -> gp_Pnt { return self(point); },
+            [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); },
+            [](geoml::Transform const& self, const gp_Vec& vec) -> gp_Vec { return self(vec); }
+        ))
+        .add_member_function("apply", sol::overload(
             [](geoml::Transform const& self, const TopoDS_Shape& shape) -> TopoDS_Shape { return self(shape); },
             [](geoml::Transform const& self, const gp_Pnt& point) -> gp_Pnt { return self(point); },
             [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); },

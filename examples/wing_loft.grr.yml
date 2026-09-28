@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Ported from legacy-geo/tests/test_data/wing.grr (the pre-rewrite geo/grocc
+# plugins' own recipe): an airfoil point list -> geo::interpolate_points (base
+# curve) -> geo::transform x3 (three span-wise placements) -> geo::interpolate_curves
+# (lofts the three curves into one surface) -> grocc::BRepBuilderAPI_MakeFace ->
+# grocc::BRepTools::Write.
+#
+# The final loft-to-surface step has no working equivalent here yet:
+# geoml.interpolate_curves (geoml/surfaces/surfaces.h, the direct modern equivalent
+# of legacy's geo::interpolate_curves) segfaults on this plugin's own build for
+# *any* input tried (2 and 3 simple, non-degenerate section curves both crash,
+# reproducibly, in a standalone spike well before this recipe's own concern) - a
+# real bug, most likely a further geoml-vs-OCCT-7.9 incompatibility in the
+# curve-network/Gordon-surface implementation beyond the 6 fixes
+# scripts/geoml-occt79-compat.patch already applies (see DESIGN.md), not a
+# binding/generator problem: geoml.curve_vec(...) (src/curve_vec_extras.hpp, a
+# small hand-written escape hatch this example needed - std::vector<Handle(Geom_Curve)>
+# has the same "no plain-table-to-vector conversion for a reference parameter"
+# limitation as any other std::vector<T> parameter throughout this project) builds
+# a genuine, correctly-typed std::vector<Handle(Geom_Curve)> without incident - the
+# crash is inside interpolate_curves' own real algorithm. Worth reporting upstream
+# to DLR-SC/geoml, not fixed here.
+#
+# So: this recipe stops one step short of the original - it builds and places the
+# three section curves (still exercising interpolate_points_to_b_spline_curve,
+# geoml.Transform's operator(), and geoml.CurveToEdge), and exports them as one
+# compound of three edges rather than a single lofted face. Genuinely running,
+# genuinely demonstrating the real composition this plugin supports - see
+# ../README.md.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+parameters:
+  # A small 4-point "airfoil-ish" section curve, chord along x, camber in y -
+  # loosely modeled on legacy-geo's own wing.grr point list, not a real airfoil.
+  chord: 3.0
+  camber: 0.4
+  span: 6.0
+  sweep: 1.5
+steps: |
+  p1 = occt.gp_Pnt.new(0.0, 0.0, 0.0)
+  p2 = occt.gp_Pnt.new(chord * 0.3, camber, 0.0)
+  p3 = occt.gp_Pnt.new(chord * 0.7, -camber * 0.5, 0.0)
+  p4 = occt.gp_Pnt.new(chord, 0.0, 0.0)
+
+  -- geoml.Transform's own operator() (src/transform_extras.hpp) only has
+  -- overloads for TopoDS_Shape/gp_Pnt/Handle(Geom_Surface)/gp_Vec, not a
+  -- Geom_Curve handle directly - so each station's own 4 control points are
+  -- transformed individually (the gp_Pnt overload), then rebuilt into a real
+  -- std::vector<gp_Pnt> via occt.gp_Pnt.as_vec(...) (the only way to get one at
+  -- all - a plain Lua table isn't accepted where a std::vector<T> parameter is
+  -- taken by reference, confirmed throughout this project), before interpolating
+  -- each station's own curve.
+  root_xf = geoml.Transform.new(occt.gp_Vec.new(0.0, 0.0, 0.0))
+  mid_xf = geoml.Transform.new(occt.gp_Vec.new(sweep * 0.5, 0.0, span * 0.5))
+  tip_xf = geoml.Transform.new(occt.gp_Vec.new(sweep, 0.0, span))
+
+  root_pts = occt.gp_Pnt.as_vec(root_xf:apply(p1), root_xf:apply(p2), root_xf:apply(p3), root_xf:apply(p4))
+  mid_pts = occt.gp_Pnt.as_vec(mid_xf:apply(p1), mid_xf:apply(p2), mid_xf:apply(p3), mid_xf:apply(p4))
+  tip_pts = occt.gp_Pnt.as_vec(tip_xf:apply(p1), tip_xf:apply(p2), tip_xf:apply(p3), tip_xf:apply(p4))
+
+  root_curve = geoml.interpolate_points_to_b_spline_curve(root_pts, 3)
+  mid_curve = geoml.interpolate_points_to_b_spline_curve(mid_pts, 3)
+  tip_curve = geoml.interpolate_points_to_b_spline_curve(tip_pts, 3)
+
+  root_edge = geoml.CurveToEdge(root_curve)
+  mid_edge = geoml.CurveToEdge(mid_curve)
+  tip_edge = geoml.CurveToEdge(tip_curve)
+
+  sections = occt.TopoDS_Compound.new()
+  builder = occt.BRep_Builder.new()
+  builder:MakeCompound(sections)
+  builder:Add(sections, root_edge)
+  builder:Add(sections, mid_edge)
+  builder:Add(sections, tip_edge)
+
+  ok = occt.export_brep(sections, "wing_loft.brep")
+outputs:
+  sections: sections
+  ok: ok

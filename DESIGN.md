@@ -284,3 +284,97 @@ not the resulting curve's own geometric properties (already covered by grunk-occ
 own equivalent tests, with `occt_plugin.so` loaded there).
 
 `GRUNK_GEOML_TESTS` flipped to default `ON`, matching grunk-occt's own convention.
+
+## Step 6 (partial): `load_carrier`/`wing_loft` examples, and a real grunk-core recipe/`__call` gap
+
+Ported the two simplest examples from the plan's priority list -
+`examples/load_carrier.grr.yml` (a box with two cylindrical through-holes -
+`geoml.create_box`/`create_cylinder`, `geoml.Transform`, `geoml.boolean_subtract`,
+simplified from the original draft PR since this plugin has no fillet/shell/
+face-removal coverage yet) and `examples/wing_loft.grr.yml` (three placed airfoil-ish
+section curves exported as a compound of edges, stopping one step short of the
+legacy `wing.grr`'s own final loft-to-surface step - see below). Both run
+successfully end to end via `pixi run run_examples`, producing real, non-trivial
+`.brep` output, with `occt_plugin.so`/`geoml_plugin.so` loaded together.
+
+**A real, generic grunk-core limitation found porting `wing_loft`**: `Transform`'s
+`operator()` (verified working via a plain `create_env()` script when its escape
+hatch was added earlier) fails inside an actual recipe's `steps:` block - "attempt
+to call a sol.grunk::Feature<...> value". Root cause: grunk's own decorated/
+parametric environment (every recipe runs in this one, for dependency tracking)
+wraps every value in a `grunk::Feature<object>`, and that wrapping forwards named
+function/method calls but not Lua's `__call` metamethod on an arbitrary userdata.
+Not fixable from this plugin's own registration code - worked around by also
+registering the same overload set under a plain `apply` method
+(`src/transform_extras.hpp`), so recipes use `xf:apply(point)` (ordinary colon-call,
+which does work) instead of `xf(point)`. `sol::meta_function::call` itself is left
+in place too - still genuinely useful outside a recipe's own decorated environment
+(a plain script, or this plugin's own `tests/test_transformations.cpp`). Worth
+reporting upstream to `grunk` itself at some point - out of scope to fix here (would
+mean changing `grunk::dynamic`'s own `ActionDynamic`/decorated-environment wrapping,
+not this plugin).
+
+**A real, unresolved geoml bug found porting `wing_loft`**: `geoml.interpolate_curves`
+(the modern equivalent of legacy's `geo::interpolate_curves`, needed for the actual
+loft-to-surface step) segfaults for every input tried (2 and 3 simple, valid,
+non-degenerate section curves, built two different ways) - reproduced in a
+standalone spike well outside this recipe's own code. Ruled out as a binding
+problem first: `geoml.curve_vec(...)` (`src/curve_vec_extras.hpp`, a new small
+hand-written escape hatch - `std::vector<Handle(Geom_Curve)>` has the same
+"no plain-table-to-vector conversion for a reference parameter" limitation as every
+other `std::vector<T>` parameter throughout this project, and a single
+`Handle(Geom_BSplineCurve)`-for-`Handle(Geom_Curve)` argument already works fine,
+confirmed via `geoml.CurveToEdge`) builds a genuinely correct
+`std::vector<Handle(Geom_Curve)>` without incident - the crash is inside
+`interpolate_curves`'s own real algorithm, most likely a further geoml-vs-OCCT-7.9
+incompatibility in the curve-network/Gordon-surface implementation beyond
+`scripts/geoml-occt79-compat.patch`'s own 6 fixes. Not investigated further (out of
+scope for this step - would mean debugging/patching geoml's own C++ internals) -
+`wing_loft.grr.yml` exports a compound of the three section edges instead of a
+lofted face, and worth reporting upstream to DLR-SC/geoml.
+
+## `airplane_seats`/`gasturbine_cavity_update` ported - two real recipe-API findings
+
+Both examples (`examples/airplane_seats.grr.yml`, `examples/gasturbine_cavity_update.grr.yml`,
+both run via the shared `run_example.py`) run cleanly with real, verified output.
+Both are `.grr.yml` recipes, not Python driver scripts - see each - simplification
+of the original 2023/2024-era PR189 geometry to a single `geoml.create_box`, since
+the point of each is the *mechanism* (a parametric expression; recipe composition),
+not geometric fidelity.
+
+**`airplane_seats`**: the old draft PR's own `grunk.expression("seat_z", "h_sitting_surface - h_cushion", ...)`
+calls have no equivalent in the current API at all - `grunk.expression` doesn't
+exist. Turns out none is needed: a recipe's `steps:` block already runs in grunk's
+decorated/parametric environment, where plain Lua arithmetic on two
+Feature-wrapped parameters already produces a new, reactive Feature with full
+dependency tracking (confirmed via grunk's own `tests/cpp/dynamic_operators.cpp`,
+`fx + fy` there) - `seat_z = h_sitting_surface - h_cushion` *is* the modern
+spelling of the same mechanism. Verified the reactivity directly, not just assumed:
+`recipe.get_feature("h_cushion").set_value(5.0)` correctly re-derives `seat_z`
+(37.0 → 40.0) with no re-read from disk.
+
+**`gasturbine_cavity_update`**: needed real, empirical reverse-engineering of the
+actual sub-recipe Lua syntax - `grunk`'s own `docs/usage.rst` ("Subrecipes")
+documents a dot-notation form (`multiplication.x = a`, `d = multiplication.z`,
+`recipes: { multiplication: {...} }` at the YAML top level) that **does not work**
+against this project's actual pinned grunk revision - reading a recipe using it
+fails outright ("attempt to index/call a nil value (global '&lt;name&gt;')"): the
+sub-recipe's own name is never installed as a bare Lua global at all, contrary to
+what the docs show. The actual, verified-working mechanism, found by reading
+`grunk/recipe/Recipe.hpp`'s own (more authoritative, more current) doc comments
+directly rather than trusting the RST prose further: sub-recipes are reachable
+through a Lua table called `recipes` (`Recipe::re_register_lua_index()`'s own doc
+comment names it directly), calling `recipes.&lt;name&gt;()` yields a `RecipeCaller`
+(`Recipe::SubRecipe::operator()`'s own doc comment: "returns a proxy object that
+can be used to evaluate the subrecipe as a function"), and `.get("&lt;output_name&gt;")`
+on that `RecipeCaller` reads one specific output - i.e.
+`cav = recipes.cavity():get("cavity_shape")`, not `cavity.cavity_shape`.
+`insert_module_script`'s own separate mechanism (a *different* feature, for
+imperative Lua module scripts, not subrecipes) does correctly install its own name
+as a bare global, per its own doc comment - the two are easy to conflate but are
+genuinely different APIs with different Lua-visibility rules. Worth fixing
+`docs/usage.rst` upstream in `grunk` itself at some point (a documentation bug, not
+a code bug) - not done here.
+
+`wing_fuselage_configuration` (the larger geometry-focused rewrite) remains the
+last piece of Step 6, not done here.

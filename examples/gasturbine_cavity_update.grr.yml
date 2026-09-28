@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Ported from an old draft PR's own gasturbine_cavity_update example
+# (grunk-dev/grunk#189, examples/gasturbine_cavity_update/) - the real mechanism
+# being demonstrated is **recipe composition** (that PR's own cavity_sketch()
+# building a small grunk.Recipe, nested into a bigger cavity_recipe via
+# insert_recipe), not a literal port of its 2024-era gas-turbine geometry (built
+# from raw BRepBuilderAPI_MakePolygon calls this plugin has no need to reproduce
+# to show the same composition mechanism). A plain box stands in for "a cavity
+# cross-section", subtracted from a bigger surrounding block.
+#
+# Uses grunk's own top-level `recipes:` key (see grunk's docs/usage.rst,
+# "Subrecipes") - a named, inline sub-recipe with its own uses:/parameters:/steps:,
+# addressed from the outer steps: block by dot-notation (`cavity.width = ...` sets
+# an input, `cavity.cavity_shape` reads an output) - simpler than composing two
+# separate recipes from Python (grunk::Recipe::insert_recipe/recipes[...]/
+# get(...).with_id(...), the C++/Python-only API docs/usage.rst also documents) and
+# just as real a demonstration of the same underlying subrecipe mechanism. See
+# ../README.md for how to run this.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+parameters:
+  block_dx: 20.0
+  block_dy: 12.0
+  block_dz: 10.0
+recipes:
+  cavity:
+    uses:
+      grunk: 0.5.0
+      geoml: 0.1.0
+    parameters:
+      width: 6.0
+      depth: 3.0
+      height: 10.0
+    steps: |
+      cavity_shape = geoml.create_box(width, depth, height)
+steps: |
+  block = geoml.create_box(block_dx, block_dy, block_dz)
+  cav = recipes.cavity():get("cavity_shape")
+  result = geoml.boolean_subtract(block, cav)
+  ok = occt.export_brep(result:shape(), "gasturbine_cavity_update.brep")
+outputs:
+  result: result
+  ok: ok

@@ -141,17 +141,20 @@ install = { cmd = "cmake --install build", depends-on = ["build"], description =
 depends-on = ["configure", "build", "test", "test_hooks", "run_examples"]
 description = "Configure, build, test, test_hooks, and run the examples."
 
-# Same platform-specific-filename pattern as grunk-occt's own run_examples tasks -
-# examples/ doesn't exist yet (see DESIGN.md), so this task is a placeholder until
-# Step 6 adds it.
+# Same platform-specific-filename pattern as grunk-occt's own run_examples tasks.
+# Every recipe under examples/ mixes occt.*/geoml.* calls (the whole point of this
+# plugin), so run_example.py takes *both* plugin paths - occt_plugin's own is NOT
+# built by this repo (see run_example.py's own top comment): ../grunk-occt/build is
+# this workspace's own sibling-repo default, overridable by calling
+# run_example.py directly with a different path if you built grunk-occt elsewhere.
 [target.linux-64.tasks]
-run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.so ../grunk-occt/build/libocct_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
 
 [target.osx-64.tasks]
-run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.dylib", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.dylib ../grunk-occt/build/libocct_plugin.dylib", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
 
 [target.win-64.tasks]
-run_examples = { cmd = "python examples/run_example.py build/geoml_plugin.dll", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md)." }
+run_examples = { cmd = "python examples/run_example.py build/geoml_plugin.dll ../grunk-occt/build/occt_plugin.dll", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
 
 # AD-enabled build/test tasks - same shape as grunk-occt's own [feature.ad.tasks].
 [feature.ad.tasks]

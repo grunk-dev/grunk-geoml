@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Ported from an old draft PR (grunk-dev/grunk#189, examples/load_carrier/) written
+# against the pre-rewrite grocc/geo plugins - the original built a rectangle,
+# extruded it, cut two sphere-shaped pockets, filleted the edges, shelled the
+# result, and removed two faces. This plugin's own current coverage has no
+# fillet/shell/face-removal yet (not in any accepted module - see DESIGN.md's
+# "Known generator gaps blacklisted for now" and codegen/config.yml's own
+# blacklist comments), so this is deliberately simplified to what's real and
+# callable today: a box with two cylindrical through-holes, positioned via
+# geoml.Transform and combined via geoml.boolean_subtract - still a genuine,
+# meaningful geoml+occt composition (Shape <-> TopoDS_Shape round-tripping,
+# Transform's operator(), boolean_subtract chaining), just a smaller geometric
+# result than the original. See ../README.md for how to run this.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+parameters:
+  box_dx: 40.0
+  box_dy: 20.0
+  box_dz: 15.0
+  hole_radius: 3.0
+  hole1_x: 10.0
+  hole1_y: 10.0
+  hole2_x: 30.0
+  hole2_y: 10.0
+steps: |
+  box = geoml.create_box(box_dx, box_dy, box_dz)
+
+  -- geoml.create_cylinder builds its cylinder along +z starting at the origin
+  -- (geoml/primitives/modeling.hpp's own doc comment) - translate each one so it
+  -- pierces the box vertically with a little margin on both ends, rather than
+  -- just touching one face.
+  overhang = 2.0
+  hole_height = box_dz + 2.0 * overhang
+
+  cyl1 = geoml.create_cylinder(hole_radius, hole_height)
+  xf1 = geoml.Transform.new(occt.gp_Vec.new(hole1_x, hole1_y, -overhang))
+  -- Transform's operator() takes/returns a raw TopoDS_Shape (src/transform_extras.hpp)
+  -- - geoml.Shape.new(...) wraps it back into the history-tracking wrapper
+  -- boolean_subtract itself expects.
+  hole1 = geoml.Shape.new(xf1:apply(cyl1:shape()))
+  carrier_1 = geoml.boolean_subtract(box, hole1)
+
+  cyl2 = geoml.create_cylinder(hole_radius, hole_height)
+  xf2 = geoml.Transform.new(occt.gp_Vec.new(hole2_x, hole2_y, -overhang))
+  hole2 = geoml.Shape.new(xf2:apply(cyl2:shape()))
+  carrier = geoml.boolean_subtract(carrier_1, hole2)
+
+  ok = occt.export_brep(carrier:shape(), "load_carrier.brep")
+outputs:
+  carrier: carrier
+  ok: ok

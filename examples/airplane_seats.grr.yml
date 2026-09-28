@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Ported from an old draft PR's own airplane_seats example (grunk-dev/grunk#189,
+# examples/airplane_seats/seat_model.py) - the real mechanism being demonstrated is
+# a **parametric expression**: that PR's own seat_cushion_recipe()/backrest_recipe()
+# used grunk.expression("seat_z", "h_sitting_surface - h_cushion", h_sitting_surface,
+# h_cushion) to compute a derived dimension with dependency tracking. The current
+# API has no grunk.expression(...) call at all - a recipe's own steps: block already
+# runs in grunk's decorated/parametric environment, where plain Lua arithmetic on
+# two Feature-wrapped parameters already produces a new, reactive Feature with full
+# dependency tracking (confirmed via grunk's own tests/cpp/dynamic_operators.cpp,
+# `fx + fy` there): this recipe's own `seat_z = h_sitting_surface - h_cushion` line
+# *is* the same mechanism, just spelled as plain arithmetic instead of a named
+# helper function. Geometry deliberately simplified to a single box (a "seat
+# cushion" stand-in) rather than the original's own raw-OCCT compound/edge/fillet
+# construction - the point here is the reactive expression feeding a real geoml
+# construction call, not cushion CAD fidelity. See ../README.md for how to run this
+# (run_example.py also demonstrates the reactivity directly: changing h_cushion and
+# re-reading seat_z without re-reading the recipe from disk).
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+parameters:
+  h_sitting_surface: 45.0
+  h_cushion: 8.0
+  seat_width: 45.0
+  seat_depth: 40.0
+steps: |
+  seat_z = h_sitting_surface - h_cushion
+
+  cushion = geoml.create_box(seat_width, seat_depth, seat_z)
+  ok = occt.export_brep(cushion:shape(), "airplane_seats.brep")
+outputs:
+  seat_z: seat_z
+  ok: ok

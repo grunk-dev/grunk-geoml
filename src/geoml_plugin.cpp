@@ -35,6 +35,7 @@
 #include "../generated/internal_system.hpp"
 #include "../generated/internal_topology.hpp"
 
+#include "curve_vec_extras.hpp"
 #include "predicate_extras.hpp"
 #include "transform_extras.hpp"
 
@@ -45,6 +46,7 @@ void register_geoml(grunk::state& state, grunk::PluginInfo const& info)
     auto ns = state.begin_plugin(info);
     register_surfaces(ns);
     register_curves(ns);
+    register_curve_vec_extras(ns);
     register_utilities(ns);
     register_boolean_ops(ns);
     register_geom_topo(ns);
