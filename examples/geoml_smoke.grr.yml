@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# NOT one of the plan's own planned examples (load_carrier/airplane_seats/
+# wing_fuselage_configuration/gasturbine_cavity_update - see DESIGN.md, Step 6, not
+# started yet) - a minimal fixture written only to exercise tests/test_recipe.cpp's
+# own recipe-layer coverage (parameters:/steps:/outputs:, reactive re-evaluation),
+# the same role grunk-occt's own cavity_model.grr.yml plays for its own
+# test_recipe.cpp. Deliberately self-contained (uses only `geoml`, not `occt` too) -
+# create_cylinder/create_box/boolean_union/Shape:is_empty need no OCCT value
+# construction at all, so this recipe (and the test exercising it) needs no
+# occt_plugin.so loaded, matching this plugin's own test suite's general policy of
+# not taking a build-time dependency on grunk-occt for its own tests.
+uses:
+  grunk: 0.5.0
+  geoml: 0.1.0
+parameters:
+  radius: 1.0
+  height: 2.0
+  box_size: 0.5
+steps: |
+  cyl = geoml.create_cylinder(radius, height)
+  box = geoml.create_box(box_size, box_size, box_size)
+  fused = geoml.boolean_union(cyl, box)
+  -- Not "not fused:is_empty()" - a bare Lua `not` doesn't go through grunk's own
+  -- decorated/parametric environment's function-call wrapping (see grunk's own
+  -- ActionDynamic-based dependency tracking), so its result is a plain Lua boolean,
+  -- not a tracked Feature, and can't be marked as an output ("no such feature in
+  -- this recipe" - found the hard way). Every step here is a real method/function
+  -- call instead, each producing a genuine tracked Feature.
+  is_empty = fused:is_empty()
+outputs:
+  ok: is_empty

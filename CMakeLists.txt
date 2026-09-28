@@ -33,11 +33,9 @@ elseif (NOT WIN32)
     list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 endif()
 
-# Defaults to OFF, unlike grunk-occt's own GRUNK_OCCT_TESTS (ON) - there is no
-# tests/ directory yet (see DESIGN.md, this is scaffolding only so far, Step 5 adds
-# the actual test harness). Flip the default to ON once tests/test_load.cpp and
-# friends exist, mirroring grunk-occt exactly at that point.
-option(GRUNK_GEOML_TESTS "Build the test harness (no tests/ yet - see DESIGN.md)" OFF)
+# Defaults ON, same as grunk-occt's own GRUNK_OCCT_TESTS - Step 5 (see DESIGN.md)
+# added the real test harness (tests/test_load.cpp and friends).
+option(GRUNK_GEOML_TESTS "Build the test harness" ON)
 
 # See grunk-occt/CMakeLists.txt's own identical option - same generated-code policy
 # (checked-in generated/, regenerated only on request, requires clang/libclang).
@@ -283,9 +281,18 @@ else()
     message(STATUS "generated/ and src/geoml_plugin.cpp not present yet - skipping geoml_plugin target (see DESIGN.md; this repository is scaffolding only so far).")
 endif()
 
-# --- test harness: same shape as grunk-occt's own (tests/, one gtest file per
-# geoml module wrapped) - not added yet (GRUNK_GEOML_TESTS defaults OFF above), so
-# this block only ever runs once someone flips it ON after tests/ actually exists.
+# --- test harness: same shape as grunk-occt's own - one gtest file per *public*
+# module (surfaces/curves/utilities/boolean_ops/geom_topo/naming_choosing/
+# predicates/primitives/transformations - the actual Lua-facing API surface),
+# plus test_load.cpp/test_recipe.cpp. `data_structures` has no dedicated test
+# (its own module registers nothing at all - every symbol in
+# Array2d.h/conversions.h was rejected, see generated/data_structures.cpp); the
+# ten internal_* modules (implementation-detail helpers) have no dedicated tests
+# either - most of their own coverage is already exercised transitively through
+# the public-module tests above (e.g. curves'/surfaces' own Handle(Geom_*)
+# results are built by internal_geometry's own functions internally), and
+# nothing in them needed its own regression test beyond "it's in geoml_plugin.so
+# at all" (already covered by test_load.cpp).
 if(GRUNK_GEOML_TESTS)
     enable_testing()
     find_package(GTest REQUIRED)
@@ -294,13 +301,27 @@ if(GRUNK_GEOML_TESTS)
     set(GEOML_TEST_SOURCES
         tests/test_load.cpp
         tests/test_recipe.cpp
+        tests/test_primitives.cpp
+        tests/test_boolean_ops.cpp
+        tests/test_naming_choosing.cpp
+        tests/test_predicates.cpp
+        tests/test_transformations.cpp
+        tests/test_curves.cpp
+        tests/test_surfaces.cpp
+        tests/test_geom_topo.cpp
     )
     if(GRUNK_GEOML_ENABLE_AD)
         list(APPEND GEOML_TEST_SOURCES tests/test_ad.cpp)
     endif()
 
     add_executable(runUnitTests ${GEOML_TEST_SOURCES})
-    target_link_libraries(runUnitTests PRIVATE grunk::plugin grunk::recipe GTest::gtest_main)
+    # OpenCASCADE: several test files construct gp_Pnt/Handle(Geom_*)/TopoDS_Shape
+    # values directly in C++ and push them into Lua as opaque objects (this test
+    # suite never loads occt_plugin.so - grunk-geoml has no build-time dependency on
+    # grunk-occt at all, for its own tests either - see e.g. tests/test_curves.cpp's
+    # own comment for why this is safe and matches Step 0's own Handle(X) findings).
+    target_link_libraries(runUnitTests PRIVATE grunk::plugin grunk::recipe GTest::gtest_main ${OpenCASCADE_LIBRARIES})
+    target_include_directories(runUnitTests PRIVATE ${OpenCASCADE_INCLUDE_DIR} ${GEOML_INCLUDE_DIR})
     target_compile_definitions(runUnitTests PRIVATE
         GEOML_PLUGIN_SO_PATH="$<TARGET_FILE:geoml_plugin>"
         EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples"

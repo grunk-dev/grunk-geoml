@@ -133,7 +133,7 @@ generate_code = { cmd = "cmake --build build --target generate_code", descriptio
 
 test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], description = "Run the test harness." }
 
-test_hooks = { cmd = "pytest -xvs tests/python", description = "Run this plugin's own codegen/hooks.py unit tests (not added yet - see DESIGN.md)." }
+test_hooks = { cmd = "pytest -xvs tests/python", description = "Run this plugin's own codegen/hooks.py unit tests." }
 
 install = { cmd = "cmake --install build", depends-on = ["build"], description = "Install geoml_plugin into build/install (CMAKE_INSTALL_PREFIX, set by the configure task)." }
 

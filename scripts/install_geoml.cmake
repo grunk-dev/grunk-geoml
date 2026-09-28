@@ -65,6 +65,38 @@ endif()
 run_or_die(COMMAND git fetch origin "${GEOML_REV}" WORKING_DIRECTORY "${GEOML_CHECKOUT}")
 run_or_die(COMMAND git checkout "${GEOML_REV}" WORKING_DIRECTORY "${GEOML_CHECKOUT}")
 
+# geoml's own pinned commit predates OCCT 7.9 (it was written against 7.6.2, see
+# conanfile.py's own pin) and doesn't build against it unpatched - found the hard
+# way running `pixi run configure` for real for the first time (Step 5, see
+# DESIGN.md): TopLoc_Location::HashCode(int)/TopoDS_Shape::HashCode(int) were both
+# removed in 7.9 (the latter replaced by std::hash<TopoDS_Shape>), math_Vector
+# became a type alias (math_VectorBase<double>) rather than a real class - breaking
+# both an elaborated `class math_Vector` forward-declaration and two files that
+# relied on it being transitively included - and Standard_values.h (an old M_PI-
+# providing header) was removed outright. Also includes a real geoml install-rule
+# gap unrelated to OCCT versioning: its own public-header install(DIRECTORY ...)
+# only ever matched "*.h", silently dropping boolean_ops/modeling.hpp and
+# primitives/modeling.hpp (the same class of "header-naming-convention glob
+# mismatch" grunk-occt's own config.yml already documents for BRepBuilderAPI.hxx).
+# None of this is specific to -DGEOML_INSTALL_INTERNAL_API=ON or to this plugin's
+# own usage - it's geoml's own source failing to build against a newer OCCT at all,
+# so this patch belongs here, applied unconditionally, not conditioned on any
+# option this script passes. Worth reporting upstream to DLR-SC/geoml directly
+# (these are real, narrow OCCT-7.9-compatibility bugs, not this plugin's own
+# workarounds) - not yet done, see DESIGN.md.
+# --reverse --check is a read-only probe (see git-apply(1)) - true if the patch is
+# already applied, letting this script stay idempotent against an already-patched
+# checkout the same way the whole script is against an already-installed prefix.
+execute_process(
+    COMMAND git apply --reverse --check "${CMAKE_CURRENT_LIST_DIR}/geoml-occt79-compat.patch"
+    WORKING_DIRECTORY "${GEOML_CHECKOUT}"
+    RESULT_VARIABLE _already_applied
+    OUTPUT_QUIET ERROR_QUIET
+)
+if(NOT _already_applied EQUAL 0)
+    run_or_die(COMMAND git apply "${CMAKE_CURRENT_LIST_DIR}/geoml-occt79-compat.patch" WORKING_DIRECTORY "${GEOML_CHECKOUT}")
+endif()
+
 run_or_die(COMMAND "${CMAKE_COMMAND}" -G Ninja -S . -B build
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_INSTALL_PREFIX=${GEOML_PREFIX}

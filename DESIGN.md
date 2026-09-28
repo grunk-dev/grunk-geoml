@@ -217,3 +217,70 @@ overload ("no matching function"), most likely because the real `Decompose()` ta
 mutable out-parameters (the same "no Lua-side identity to mutate a bare number/bool
 in place" limitation documented throughout grunk-occt's own `config.yml`) - worth
 actually reading the header before assuming that's the cause.
+
+## Step 5: test harness ported, real `pixi run` workflow validated for the first time
+
+Everything up to this point had only ever been built/tested via manual `cmake`/env-var
+invocations reusing `grunk-occt`'s own pixi environment directly - this plugin's own
+`pixi.toml` tasks (`configure`/`build`/`test`/`test_hooks`) had never actually been run.
+Doing so for real (`pixi install`, then `pixi run -e default configure && ... build &&
+... test`) surfaced a real, substantial gap: geoml's pinned commit (written against
+OCCT 7.6.2, see its own `conanfile.py`) doesn't build against OCCT 7.9 (what this
+project's own pixi environment provides) at all, unpatched. This had gone unnoticed
+because earlier manual verification (Step 2 onward) reused a `.deps/geoml` checkout
+that had been hand-patched once, ad hoc, and never captured anywhere - `scripts/
+install_geoml.cmake` itself (what `pixi run configure` actually invokes, cloning
+fresh into `build/_deps/geoml`) never had these fixes.
+
+Fixed properly this time: a real, versioned `scripts/geoml-occt79-compat.patch`,
+applied automatically (idempotently - checked via `git apply --reverse --check`) by
+`install_geoml.cmake` right after checkout. Six fixes, all genuine OCCT-7.9 API drift
+or a pre-existing geoml install-rule gap, none specific to
+`-DGEOML_INSTALL_INTERNAL_API=ON` or to this plugin's own usage:
+- `TopLoc_Location::HashCode(int)` and `TopoDS_Shape::HashCode(int)` were both removed
+  in OCCT 7.9 (`Shape.cpp`, `StepReader.cpp`×2) - the former has a no-arg replacement,
+  the latter's replaced with `std::hash<TopoDS_Shape>`.
+- `math_Vector` became a type alias (`using math_Vector = math_VectorBase<double>;`)
+  rather than a real class in OCCT 7.9 - broke an elaborated `class math_Vector`
+  forward-declaration in `BSplineFit.h` (removed the `class` keyword) and two files
+  that relied on it being transitively included via `math_Matrix.hxx` and never
+  included `math_Vector.hxx` directly (`BSplineFit.cpp`, `math/Matrix.h`).
+- `Standard_values.h` (an old M_PI-providing header) was removed outright -
+  `CommonFunctions.h` replaced with `<cmath>`.
+- geoml's own `install(DIRECTORY geoml/ ... FILES_MATCHING PATTERN "*.h")` never
+  matched `*.hpp`, silently dropping `boolean_ops/modeling.hpp`/
+  `primitives/modeling.hpp` - same class of gap grunk-occt's own `config.yml`
+  documents for `BRepBuilderAPI.hxx`.
+
+None of this is a `grunk`/`grunk.codegen` bug (unlike the two fixed upstream earlier)
+- it's geoml's own source needing a compatibility patch for a newer OCCT, the same
+role `examples/cpp/cad_autodiff`'s own `patches/geoml-feature-autodiff-occt79.patch`
+plays for the AD variant. Worth reporting upstream to DLR-SC/geoml directly - not yet
+done.
+
+With that patch in place, `pixi run -e default configure && build && test` and
+`pixi run -e default test_hooks` all pass cleanly from a completely fresh clone (no
+manually-patched checkouts, no reused `.deps/` from earlier sessions). Test harness:
+`tests/test_load.cpp` plus one real `tests/test_<module>.cpp` per *public* module
+(`surfaces`/`curves`/`utilities` - wait, no dedicated `utilities` test, see below -
+`boolean_ops`/`geom_topo`/`naming_choosing`/`predicates`/`primitives`/
+`transformations`), `tests/test_recipe.cpp` (reads a new, minimal
+`examples/geoml_smoke.grr.yml` fixture - not one of the plan's own real examples,
+Step 6 - purely to exercise the recipe layer), and `tests/python/test_hooks.py`
+(mirrors grunk-occt's own structure, plus new tests for this plugin's own
+`Handle(X)`/`std::vector<Handle(X)>` extension and the `std::vector<T>` core-fallback
+composition). No dedicated tests for `data_structures` (its own module registers
+nothing at all - every symbol in `Array2d.h`/`conversions.h` was rejected) or
+`utilities` (its own two real functions both need a pre-built
+`Handle(Geom_BSplineSurface)` - disproportionate fixture setup for now, deferred to
+Step 6's real examples). This test suite deliberately never loads `occt_plugin.so`
+(no build-time dependency on `grunk-occt` for its own tests) - OCCT values (`gp_Pnt`,
+`Handle(X)`, enums, ...) are constructed directly in C++ and pushed into Lua, not
+built via `occt.*.new(...)` calls; a real consequence of this, found while writing
+`tests/test_curves.cpp`, is that a `Handle(Geom_BSplineCurve)` returned by a geoml
+function has no *methods* callable on it in this test suite specifically (no plugin
+registers `Geom_BSplineCurve` here) - these tests only confirm construction succeeds,
+not the resulting curve's own geometric properties (already covered by grunk-occt's
+own equivalent tests, with `occt_plugin.so` loaded there).
+
+`GRUNK_GEOML_TESTS` flipped to default `ON`, matching grunk-occt's own convention.

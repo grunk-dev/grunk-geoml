@@ -1,0 +1,105 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index b3f319b..df53045 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -76,6 +76,7 @@ install(DIRECTORY geoml/
+     COMPONENT cpp_bindings
+     FILES_MATCHING
+     PATTERN "*.h"
++    PATTERN "*.hpp"
+ )
+ 
+ install(FILES
+diff --git a/src/common/CommonFunctions.h b/src/common/CommonFunctions.h
+index 0254d3f..431a584 100644
+--- a/src/common/CommonFunctions.h
++++ b/src/common/CommonFunctions.h
+@@ -23,7 +23,7 @@
+ 
+ #include "CCPACSImportExport.h"
+ #include "Standard.hxx"
+-#include "Standard_values.h"
++#include <cmath>
+ #include "geoml_internal.h"
+ #include "gp_Pnt.hxx"
+ #include "gp_Vec.hxx"
+diff --git a/src/geometry/BSplineFit.cpp b/src/geometry/BSplineFit.cpp
+index c0c93af..5b26391 100644
+--- a/src/geometry/BSplineFit.cpp
++++ b/src/geometry/BSplineFit.cpp
+@@ -20,6 +20,7 @@
+ #include <TColStd_Array1OfReal.hxx>
+ #include <TColStd_Array1OfInteger.hxx>
+ #include <math_Matrix.hxx>
++#include <math_Vector.hxx>
+ #include <math_Gauss.hxx>
+ 
+ #include <BSplCLib.hxx>
+diff --git a/src/geometry/BSplineFit.h b/src/geometry/BSplineFit.h
+index 15f6587..0f51ec4 100644
+--- a/src/geometry/BSplineFit.h
++++ b/src/geometry/BSplineFit.h
+@@ -23,6 +23,7 @@
+ #include <TColStd_Array1OfReal.hxx>
+ #include <Geom_BSplineCurve.hxx>
+ #include <TColgp_Array1OfPnt.hxx>
++#include <math_Vector.hxx>
+ 
+ class BSplineFit
+ {
+@@ -69,7 +70,7 @@ private:
+ 
+ 
+     /// Computes the matrix and the right hand side of the system to be solved
+-    void initSystem(class math_Matrix& A, class math_Vector& rhsx, class math_Vector& rhsy, class math_Vector& rhsz);
++    void initSystem(math_Matrix& A, math_Vector& rhsx, math_Vector& rhsy, math_Vector& rhsz);
+ 
+     /// Computes an uniform knot vector
+     void computeKnots();
+diff --git a/src/geoml/naming_choosing/Shape.cpp b/src/geoml/naming_choosing/Shape.cpp
+index 5c2d4bd..0908c97 100644
+--- a/src/geoml/naming_choosing/Shape.cpp
++++ b/src/geoml/naming_choosing/Shape.cpp
+@@ -16,7 +16,7 @@ std::size_t ShapeHasher::operator()(Shape const& s) const
+     TopoDS_Shape occt_shape = s;
+     const void* tShapePtr = occt_shape.TShape().get();
+     std::size_t tShapeHash = std::hash<const void*>{}(tShapePtr);
+-    std::size_t locationHash = occt_shape.Location().HashCode(std::numeric_limits<int>::max());
++    std::size_t locationHash = occt_shape.Location().HashCode();
+     return tShapeHash ^ (locationHash << 1); // Combine with a left shift
+ }
+ 
+diff --git a/src/imports/StepReader.cpp b/src/imports/StepReader.cpp
+index d9790f2..9c2482d 100644
+--- a/src/imports/StepReader.cpp
++++ b/src/imports/StepReader.cpp
+@@ -55,7 +55,7 @@ namespace
+                 continue;
+             }
+ 
+-            int hash = shape->Shape().HashCode(INT_MAX);
++            int hash = static_cast<int>(std::hash<TopoDS_Shape>{}(shape->Shape()));
+             shapeMap[hash] = ishape;
+         }
+ 
+@@ -90,7 +90,7 @@ namespace
+                 std::string shapeName = prod->Name()->ToCString();
+ 
+                 // create hash and search for it in hashMap
+-                int hash = boundShape.HashCode(INT_MAX);
++                int hash = static_cast<int>(std::hash<TopoDS_Shape>{}(boundShape));
+                 HashMap::iterator it = shapeMap.find(hash);
+                 if (it == shapeMap.end()) {
+                     continue;
+diff --git a/src/math/Matrix.h b/src/math/Matrix.h
+index 0a55da1..dd4ffd5 100644
+--- a/src/math/Matrix.h
++++ b/src/math/Matrix.h
+@@ -20,6 +20,7 @@
+ #include "geoml_internal.h"
+ 
+ #include <math_Matrix.hxx>
++#include <math_Vector.hxx>
+ 
+ namespace geoml
+ {
