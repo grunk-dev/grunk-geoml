@@ -7,8 +7,21 @@
 # install_grunk task). Copied verbatim from grunk-occt/scripts/install_grunk.cmake -
 # same dependency, same pinning mechanism, same rationale (see that file's own,
 # longer comment for the full "shared libraries, not vendored" story this plugin
-# inherits unchanged). Pinned to the same GRUNK_REV grunk-occt currently pins, so
-# both plugins build against the exact same grunk commit.
+# inherits unchanged).
+#
+# GRUNK_REV was bumped 2026-09-28 past grunk-occt's own current pin
+# (583da89f0184ef6333000c45573da65a9dd551d0), to
+# b836a656f97765f0b48f7a527cf977454a830873 - grunk-geoml/codegen's two real,
+# generic grunk.codegen bugs (Param.kind()'s over-broad canonical-spelling
+# rejection breaking std::string/std::vector<T>; expand_headers()'s
+# basename-reduction breaking nested header layouts) were fixed directly in grunk
+# itself (see DESIGN.md's "Handle(X) cross-plugin sharing"/two-bugs-fixed-upstream
+# entries) rather than staying as this plugin's own hooks.py workarounds, and this
+# is the commit that lands them. grunk-occt's own pin has NOT been bumped to match
+# yet (out of scope here - not touched unless separately asked) - the two plugins
+# temporarily build against different grunk commits until that happens; both
+# commits are otherwise compatible (the bump is additive/bugfix-only, no removed
+# API), so this is not itself a build hazard, just worth resyncing eventually.
 #
 # Optional -D GRUNK_INSTALL_NAME=<name>: an alternate install-directory name under
 # .deps/ (e.g. "grunk-ad" for [feature.ad.tasks]'s own invocation) - defaults to
@@ -19,7 +32,7 @@ cmake_minimum_required(VERSION 3.15)
 if(NOT DEFINED GRUNK_INSTALL_NAME)
     set(GRUNK_INSTALL_NAME "grunk")
 endif()
-set(GRUNK_REV "583da89f0184ef6333000c45573da65a9dd551d0")
+set(GRUNK_REV "b836a656f97765f0b48f7a527cf977454a830873")
 
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(GRUNK_PREFIX "${PROJECT_ROOT}/.deps/${GRUNK_INSTALL_NAME}")

@@ -96,3 +96,55 @@ the workspace root `CLAUDE.md`'s "Next steps"). Checked before deferring: the ex
 own added files contain zero `geo::`/geoml-namespaced calls - everything in them is
 `tigl::` or `grocc::` - so deferring it costs nothing in terms of geoml module coverage
 today; revisit once `grunk-tigl` exists.
+
+## grunk pin bumped, canonical-spelling fix unlocks more than std::string
+
+`grunk`'s own two real, generic `grunk.codegen` bugs found while building this
+plugin's coverage (`Param.kind()`'s canonical-spelling fallback rejecting any class
+whose canonical spelling isn't a bare identifier, not just a pointer typedef;
+`expand_headers()` collapsing a glob match to its bare basename, breaking nested
+header layouts) were fixed directly in `grunk` itself rather than staying as this
+plugin's own `hooks.py` workarounds - see grunk PR (branch `codegen-fixes-for-geoml`,
+commit `b836a656f97765f0b48f7a527cf977454a830873`). `pixi.toml`/
+`scripts/install_grunk.cmake`'s `GRUNK_REV` bumped from `583da89f0184ef6333000c45573da65a9dd551d0`
+to that commit (grunk-occt's own pin has *not* been bumped to match - out of scope
+here; the two commits differ only in `python/grunk/codegen/`, zero changes anywhere
+under `grunk/` itself, confirmed via `git diff --stat`, so there's no ABI hazard from
+`occt_plugin.so`/`geoml_plugin.so` being built against different grunk revisions in
+the meantime). `codegen/hooks.py` simplified to drop the now-redundant local
+`std::string`/generic-`std::vector<T>` handling (core's own new built-ins do this
+identically now); kept only the genuinely plugin-specific extension core doesn't
+know about - `std::vector<Handle(X)>` (e.g. `interpolate_curve_network`'s curve
+list), since OCCT's `Handle(X)` idiom is out of core's own library-agnostic scope.
+
+The canonical-spelling fix turned out to unlock more than just `std::string`: *any*
+non-pointer smart-pointer-typedef'd parameter was being incorrectly rejected by the
+same over-broad check, not just `std::string`'s own libstdc++ template instantiation
+- geoml's own `PNamedShape`/`PLogger` (`std::shared_ptr<X>` typedefs) as
+*parameters* (previously only ever accepted as return types, an asymmetry this
+fixes) are now correctly accepted too. Regenerating against the properly-pinned
+`grunk` went from 528 accepted/38 rejected/14 blacklisted (an interim count from a
+`PYTHONPATH`-based test against the *uncommitted* fix, before the real pin bump) to
+**516 accepted/38 rejected/17 blacklisted** after resolving what the newly-unlocked
+surface area exposed:
+- `internal_boolean_operations`/`internal_geometry`: `CBopCommon`/`CCutShape`/
+  `CTrimShape`'s new `PNamedShape`/`BOPAlgo_PaveFiller`-taking constructor overloads,
+  and `Transformation::operator()(PNamedShape)`, needed `CNamedShape.h`/
+  `BOPAlgo_PaveFiller.hxx` added to their modules' own `extra_includes` (ordinary
+  incomplete-type completeness, same pattern as every other `extra_includes` entry
+  in this file - `PNamedShape`/`BOPAlgo_PaveFiller` were previously rejected
+  outright, so nobody had to give them this treatment before).
+- `internal_geometry`: three more newly-blacklisted entries, all pre-existing
+  categories of real generator gap (not new bug classes) that simply weren't
+  reachable before - `BSplineFit::Fit`/`FitOptimal` (return a bare `error`, which is
+  actually an `enum` nested inside `class BSplineFit` itself, not reachable via the
+  blanket `using namespace geoml;` - the same root cause as the already-documented
+  `BSplineAlgorithms::getKinkParameters`/`SurfaceKinks` gap above it in this file)
+  and `InterpolatePointsWithKinks` (a deleted move constructor from a non-copyable
+  `Cache<...>`/`std::mutex` member, the same category `internal_common`'s own
+  `TracePoint`/`DebugScope` entries already document).
+
+Full rebuild (`cmake --build build --parallel`) succeeds cleanly with zero errors.
+Re-verified the `nurbs_curve` smoke test (`geoml.nurbs_curve` called with
+`occt.gp_Pnt.as_vec(...)`/`occt.real_vec(...)`/`occt.int_vec(...)`-built vectors,
+`occt_plugin.so` + `geoml_plugin.so` loaded into one `grunk::state`) still passes.

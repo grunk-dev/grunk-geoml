@@ -228,7 +228,31 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/generated/translation_units.txt" AND EXISTS "${C
 
     add_library(geoml_plugin SHARED ${GEOML_PLUGIN_SOURCES})
     target_link_libraries(geoml_plugin PRIVATE grunk::plugin geoml ${OpenCASCADE_LIBRARIES})
-    target_include_directories(geoml_plugin PRIVATE ${GEOML_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR})
+    # geoml's own "internal" headers (geoml/internal/<name>/*.h - see GEOML_DIR's
+    # own comment above) use quoted includes that only resolve against geoml's own
+    # multi-directory build convention: a bare `#include "geoml_internal.h"` (no
+    # path at all) resolves only if geoml/internal itself is on the include search
+    # path, and a one-level-qualified `#include <geometry/Point.h>` only if
+    # geoml/internal's own PARENT is - confirmed the hard way (real
+    # "geoml_internal.h: No such file or directory" / "ListPNamedShape.h: No such
+    # file or directory" compile errors otherwise, exactly the same shape as the
+    # identical problem already worked around for the *codegen* tool's own single
+    # --include-dir limitation - see codegen/config.yml's own header comment). geoml
+    # itself gets this for free (its own CMakeLists.txt adds one -I per internal
+    # subdirectory, plus the source root itself) - anything consuming
+    # GEOML_INSTALL_INTERNAL_API's installed headers from outside geoml's own build
+    # tree, like this plugin, has to reconstruct the same search-path shape by hand.
+    set(GEOML_INTERNAL_SUBDIRS boolean_operations common contrib exports geometry
+        imports logging math system topology)
+    # geoml/geoml_internal.h itself (geoml_internal.h, needed by nearly every
+    # internal header via a bare quoted include) lives directly under geoml/ -
+    # a sibling of geoml/internal/, not inside it - so geoml/ itself needs to be on
+    # the search path too, mirroring geoml's own build's `-I$SRC/geoml` entry.
+    set(GEOML_INTERNAL_INCLUDE_DIRS "${GEOML_INCLUDE_DIR}/geoml/internal" "${GEOML_INCLUDE_DIR}/geoml")
+    foreach(_geoml_internal_subdir ${GEOML_INTERNAL_SUBDIRS})
+        list(APPEND GEOML_INTERNAL_INCLUDE_DIRS "${GEOML_INCLUDE_DIR}/geoml/internal/${_geoml_internal_subdir}")
+    endforeach()
+    target_include_directories(geoml_plugin PRIVATE ${GEOML_INCLUDE_DIR} ${GEOML_INTERNAL_INCLUDE_DIRS} ${OpenCASCADE_INCLUDE_DIR})
     if(GRUNK_GEOML_ENABLE_AD)
         # Activates every generated module's own #ifdef GRUNK_GEOML_WITH_ADOLC dual-
         # emission overload, mirroring grunk-occt's own GRUNK_OCCT_WITH_ADOLC exactly
