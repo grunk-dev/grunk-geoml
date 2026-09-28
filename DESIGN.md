@@ -148,3 +148,72 @@ Full rebuild (`cmake --build build --parallel`) succeeds cleanly with zero error
 Re-verified the `nurbs_curve` smoke test (`geoml.nurbs_curve` called with
 `occt.gp_Pnt.as_vec(...)`/`occt.real_vec(...)`/`occt.int_vec(...)`-built vectors,
 `occt_plugin.so` + `geoml_plugin.so` loaded into one `grunk::state`) still passes.
+
+## Known generator gaps blacklisted for now - revisit if this coverage is ever needed
+
+None of these are geoml-specific idioms - each is a real, narrow `grunk.codegen`
+limitation that happened to be exercised first by geoml's own headers. Grouped by
+root cause (not by module) since the same underlying gap recurs across several
+symbols; a real fix for any of these belongs in `grunk` itself (same treatment
+already given the `std::string`/`std::vector<T>`/canonical-spelling bugs above), not
+as a `hooks.py` workaround, since none of them are OCCT/geoml-specific.
+
+**1. A nested type used as a return type isn't qualified with its enclosing class.**
+`internal_geometry`'s blacklist: `BSplineAlgorithms::getKinkParameters` (one of its
+two overloads - the other, `Handle(Geom_BSplineCurve) -> std::vector<double>`, is
+fine and is lost too, since a static method's overloads can only be blacklisted
+together, not individually), `BSplineFit::Fit`, `BSplineFit::FitOptimal`. In each
+case the real return type (`BSplineAlgorithms::SurfaceKinks`, `BSplineFit::error`) is
+a type declared *inside* the owning class, not at namespace scope - the generator
+emits it as a bare, unqualified name ("'SurfaceKinks'/'error' does not name a type"),
+since the blanket `using namespace geoml;` this plugin's own `generated_banner`
+injects (see `config.yml`'s own comment) only helps namespace-level lookup, not
+class-nested-type scoping, and the generator has no logic at all for "this name is
+actually a member of the class this method belongs to." **What a real fix looks
+like**: in whatever function renders a callable's return-type text (`emit_return_type`/
+the base `emit_callable`'s own return-type handling in `generate.py`), when a return
+type isn't a top-level/registered/passthrough type, check whether it names a type
+nested inside the callable's own owning class (reachable via libclang's cursor
+semantic-parent walk from the method's own cursor) and, if so, qualify it as
+`OwningClass::TypeName` before emission. Purely mechanical, library-agnostic, and a
+natural sibling fix to the std::string/canonical-spelling bugs already fixed
+upstream - a good next candidate if this coverage is ever actually needed (none of
+`getKinkParameters`'s `SurfaceKinks` overload, `BSplineFit::Fit`, or
+`BSplineFit::FitOptimal` block any currently-planned example).
+
+**2. A class with an implicitly-deleted move/copy constructor still gets a by-value
+constructor lambda.** `internal_common`'s blacklist: `TracePoint`, `DebugScope`
+(each holds a non-copyable `std::atomic` member). `internal_geometry`'s blacklist:
+`InterpolatePointsWithKinks` (holds a `Cache<...>` member wrapping a non-copyable
+`std::mutex`). All three have no explicit destructor of their own, so the
+generator's `owns_resource_unsafely()` heuristic (which only checks for an explicit
+destructor anywhere in the base chain to decide "route to `unique_ptr` ctor mode
+instead of by-value") never flags them, and the emitted by-value constructor lambda
+fails to compile ("use of deleted function ...(&&)"). **What a real fix looks
+like**: extend (or add a sibling check alongside) `owns_resource_unsafely()` to also
+route to `unique_ptr` mode when a class's move constructor is implicitly deleted -
+libclang exposes `CursorKind.CONSTRUCTOR` cursors with an `is_move_constructor`-style
+flag, so the check would be "does this class have a move constructor at all, and is
+it deleted/absent" rather than trying to enumerate every possible non-copyable
+member type by name.
+
+**3. An abstract class still gets a default/`unique_ptr` constructor attempt.**
+`internal_exports`'s blacklist: `CADExporter` (pure-virtual base class, only ever
+meant to be subclassed from C++, not constructed directly - not a real coverage loss
+for Lua scripting, since the real entry point, `ExporterFactory::Create`, is already
+separately rejected for returning `std::unique_ptr<CADExporter>`, a return shape this
+generator doesn't support at all). `owns_resource_unsafely()` correctly detects
+"needs heap allocation" (real destructor in the chain) but never checks "is this
+concrete C++" before emitting `std::make_unique<T>(...)` - "invalid new-expression of
+abstract class type". **What a real fix looks like**: check
+`cursor.is_abstract_record()` (libclang exposes this) before choosing a ctor mode
+at all, and skip constructor emission entirely for an abstract class regardless of
+its destructor situation - a genuine, if narrow, gap, but low priority given the
+real entry point is blocked on the separate `std::unique_ptr` return-type gap anyway.
+
+**Lower-priority, not yet confirmed against the actual header**: `internal_geometry`'s
+`Transformation::Decompose` - the generated zero-arg overload doesn't match any real
+overload ("no matching function"), most likely because the real `Decompose()` takes
+mutable out-parameters (the same "no Lua-side identity to mutate a bare number/bool
+in place" limitation documented throughout grunk-occt's own `config.yml`) - worth
+actually reading the header before assuming that's the cause.

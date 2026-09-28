@@ -291,7 +291,10 @@ modules:
     # "unique_ptr" ctor mode instead of "value" - a real, narrow generator
     # heuristic gap. Low-value to fix properly right now either way: both are
     # internal debug-dump tooling (dumping shapes to disk for troubleshooting),
-    # not core CAD-modeling API.
+    # not core CAD-modeling API. Same root cause as internal_geometry's own
+    # InterpolatePointsWithKinks entry - see DESIGN.md's "Known generator gaps
+    # blacklisted for now" for the consolidated writeup and what a real fix would
+    # look like.
     blacklist:
       - TracePoint
       - DebugScope
@@ -328,6 +331,8 @@ modules:
     # std::unique_ptr<CADExporter>, a return shape this generator doesn't support at
     # all). extra_includes: GetShape() returns PNamedShape - see
     # internal_boolean_operations's own identical extra_includes comment for why.
+    # See DESIGN.md's "Known generator gaps blacklisted for now" for the
+    # consolidated writeup and what a real fix would look like.
     blacklist:
       - CADExporter
     extra_includes:
@@ -401,6 +406,11 @@ modules:
     #     (InterpolatePointsWithKinks&&)") - the exact same category of gap
     #     internal_common's own TracePoint/DebugScope blacklist entries document
     #     (a non-copyable/non-movable member the heuristic has no way to see).
+    #
+    # See DESIGN.md's "Known generator gaps blacklisted for now" for the
+    # consolidated, cross-referenced writeup of all of these (grouped by root cause,
+    # with what a real grunk.codegen fix would look like for each) - the single
+    # place to check before re-deriving any of this from scratch later.
     blacklist:
       - SurfaceDirection
       - ConcatDir
