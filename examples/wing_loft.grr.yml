@@ -2,75 +2,120 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-# Ported from legacy-geo/tests/test_data/wing.grr (the pre-rewrite geo/grocc
-# plugins' own recipe): an airfoil point list -> geo::interpolate_points (base
-# curve) -> geo::transform x3 (three span-wise placements) -> geo::interpolate_curves
-# (lofts the three curves into one surface) -> grocc::BRepBuilderAPI_MakeFace ->
-# grocc::BRepTools::Write. This recipe now completes every one of those steps -
-# see DESIGN.md's "interpolate_curves segfault, real root cause found" and its
-# "The real root cause, fixed upstream" follow-up for the full story of the two
-# real sol2/codegen binding bugs (not geoml bugs) that blocked this until
-# 2026-09-29, when they were fixed for real in `grunk`'s own shared codegen
-# (new SOL_BASE_CLASSES/SOL_DERIVED_CLASSES generation) plus this plugin's own
-# codegen/hooks.py (Handle(X) parameters now emitted by value) and
-# src/geoml_sol_traits.hpp (the OCCT Geom_Curve/Geom_Surface hierarchy this
-# plugin references but never itself defines). The face-building step below now
-# uses the *native* occt.BRepBuilderAPI_MakeFace binding directly - the
-# geoml.bspline_surface_to_face(...) escape hatch this recipe used before is
-# gone, no longer needed.
+# Line-by-line ported from the real original legacy-geo/tests/test_data/wing.grr
+# (uses: grunk 0.2.0, geo 0.1.2, grocc 0.1.0) - not reconstructed from scratch to
+# merely look similar. See DESIGN.md's "load_carrier/wing_loft: real line-by-line
+# re-port" for the full story of how the FIRST port of this recipe got this wrong
+# (a made-up 4-point "airfoil-ish" curve with no scaling at all between stations,
+# instead of the real 21-point NACA 2412 profile scaled/tapered per station by a
+# real affine transform).
+#
+# The original's own geo::transform(curve, transformation) (a free function
+# supporting Handle(Geom_Curve), from an ancestor of today's geoml API predating
+# even this project's own geoml checkout's git history) has no equivalent in
+# current geoml: geoml::Transform's own operator() only covers TopoDS_Shape/
+# gp_Pnt/Handle(Geom_Surface)/gp_Vec, confirmed by inspecting geoml/transformations/
+# Transform.h and geoml/geometry/Transformation.h/.cpp directly - a real, genuine
+# gap, not a Lua-binding oversight. Filled in src/transform_extras.hpp using the
+# identical technique geoml's own Transformation::Transform(Handle(Geom_Surface))
+# already uses for the sibling 2D case (wrap in a topological shape, transform via
+# the already-correct Transform::operator()(TopoDS_Shape), extract the transformed
+# curve back out) - verified directly against known expected coordinates before
+# being used here (see DESIGN.md).
 uses:
   grunk: 0.5.0
   occt: 0.1.0
   geoml: 0.1.0
 parameters:
-  # A small 4-point "airfoil-ish" section curve, chord along x, camber in y -
-  # loosely modeled on legacy-geo's own wing.grr point list, not a real airfoil.
-  chord: 3.0
-  camber: 0.4
-  span: 6.0
-  sweep: 1.5
-  face_tolerance: 1.0e-6
+  tol: 1.0e-8
+modules:
+  helpers: |
+    -- occt.gp_GTrsf's own SetValue(row, col, value) mutates the matrix in place,
+    -- same category of construct as load_carrier.grr.yml's own BRep_Builder/
+    -- BRepFilletAPI_MakeFillet sequences - several separate mutating calls on the
+    -- same object are unreliable across separate bare `steps:` lines under
+    -- grunk's own decorated/parametric environment (confirmed directly: a
+    -- gp_GTrsf built this way silently kept its default-identity values, making
+    -- every one of transform1/2/3 a no-op - see DESIGN.md's "Real recipe-API bug:
+    -- repeated mutating calls on one object are unreliable in bare steps:"). Needs
+    -- `modules:`, exactly like every other multi-call mutation in this project.
+    function make_gtrsf(sx, sy, sz, ty, tz)
+      local t = occt.gp_GTrsf.new()
+      t:SetValue(1, 1, sx)
+      t:SetValue(2, 2, sy)
+      t:SetValue(3, 3, sz)
+      t:SetValue(2, 4, ty)
+      t:SetValue(3, 4, tz)
+      return t
+    end
 steps: |
-  p1 = occt.gp_Pnt.new(0.0, 0.0, 0.0)
-  p2 = occt.gp_Pnt.new(chord * 0.3, camber, 0.0)
-  p3 = occt.gp_Pnt.new(chord * 0.7, -camber * 0.5, 0.0)
-  p4 = occt.gp_Pnt.new(chord, 0.0, 0.0)
+  -- The real NACA 2412 21-point profile, verbatim from the original recipe's own
+  -- naca2412 parameter (chord = 1, no scaling yet - transform1/2/3 below apply the
+  -- real per-station chord scaling: 100/80/50).
+  naca2412 = occt.gp_Pnt.as_vec(
+    occt.gp_Pnt.new(1.00008, 0.001257, 0),
+    occt.gp_Pnt.new(0.975825, 0.006231, 0),
+    occt.gp_Pnt.new(0.905287, 0.019752, 0),
+    occt.gp_Pnt.new(0.795069, 0.03826, 0),
+    occt.gp_Pnt.new(0.655665, 0.057302, 0),
+    occt.gp_Pnt.new(0.500588, 0.072381, 0),
+    occt.gp_Pnt.new(0.34468, 0.079198, 0),
+    occt.gp_Pnt.new(0.203313, 0.072947, 0),
+    occt.gp_Pnt.new(0.091996, 0.054325, 0),
+    occt.gp_Pnt.new(0.022051, 0.028152, 0),
+    occt.gp_Pnt.new(0, 0, 0),
+    occt.gp_Pnt.new(0.026892, -0.023408, 0),
+    occt.gp_Pnt.new(0.098987, -0.037507, 0),
+    occt.gp_Pnt.new(0.208902, -0.042346, 0),
+    occt.gp_Pnt.new(0.346303, -0.039941, 0),
+    occt.gp_Pnt.new(0.499412, -0.033493, 0),
+    occt.gp_Pnt.new(0.653352, -0.0245, 0),
+    occt.gp_Pnt.new(0.792716, -0.015499, 0),
+    occt.gp_Pnt.new(0.90373, -0.008033, 0),
+    occt.gp_Pnt.new(0.975232, -0.003035, 0),
+    occt.gp_Pnt.new(0.999916, -0.001257, 0)
+  )
 
-  -- geoml.Transform's own operator() (src/transform_extras.hpp) only has
-  -- overloads for TopoDS_Shape/gp_Pnt/Handle(Geom_Surface)/gp_Vec, not a
-  -- Geom_Curve handle directly - so each station's own 4 control points are
-  -- transformed individually (the gp_Pnt overload), then rebuilt into a real
-  -- std::vector<gp_Pnt> via occt.gp_Pnt.as_vec(...) (the only way to get one at
-  -- all - a plain Lua table isn't accepted where a std::vector<T> parameter is
-  -- taken by reference, confirmed throughout this project), before interpolating
-  -- each station's own curve. Called as xf(p) (native __call), not xf:apply(p) -
-  -- the grunk-core fix that makes this work inside a real recipe's steps: block
-  -- (DynamicFeature now forwards sol::meta_function::call, see grunk commit
-  -- c0cc16d) has landed; the "apply" workaround method is gone.
-  root_xf = geoml.Transform.new(occt.gp_Vec.new(0.0, 0.0, 0.0))
-  mid_xf = geoml.Transform.new(occt.gp_Vec.new(sweep * 0.5, 0.0, span * 0.5))
-  tip_xf = geoml.Transform.new(occt.gp_Vec.new(sweep, 0.0, span))
+  -- geo::interpolate_points(naca2412) -> geoml.interpolate_points_to_b_spline_curve
+  -- (same function, renamed - geoml's own git history shows
+  -- interpolate_points_to_b_spline_curve is the direct, only-ever-existing
+  -- implementation this recipe's own geo::interpolate_points wrapped). No degree
+  -- argument in the original either - the single-argument overload matches exactly.
+  base_curve = geoml.interpolate_points_to_b_spline_curve(naca2412)
 
-  root_pts = occt.gp_Pnt.as_vec(root_xf(p1), root_xf(p2), root_xf(p3), root_xf(p4))
-  mid_pts = occt.gp_Pnt.as_vec(mid_xf(p1), mid_xf(p2), mid_xf(p3), mid_xf(p4))
-  tip_pts = occt.gp_Pnt.as_vec(tip_xf(p1), tip_xf(p2), tip_xf(p3), tip_xf(p4))
+  -- The original's own 3 real affine transforms (geo::Transformation, a general
+  -- 4x4/gp_GTrsf-style matrix - scale AND translate combined, not a rigid
+  -- translation-only move): root station (chord x100, y100, z1, no translation),
+  -- mid station (chord x80, y100, z1, +50 in z), tip station (chord x50, y100, z1,
+  -- +20 in y, +100 in z). occt.gp_GTrsf already supports exactly this (row,col
+  -- 1-based, matching gp_GTrsf's own native convention - no row 4 needed, it's
+  -- always the implicit [0,0,0,1]).
+  t1 = helpers.make_gtrsf(100.0, 100.0, 1.0, 0.0, 0.0)
+  transform1 = geoml.Transform.new(t1)
 
-  root_curve = geoml.interpolate_points_to_b_spline_curve(root_pts, 3)
-  mid_curve = geoml.interpolate_points_to_b_spline_curve(mid_pts, 3)
-  tip_curve = geoml.interpolate_points_to_b_spline_curve(tip_pts, 3)
+  t2 = helpers.make_gtrsf(80.0, 100.0, 1.0, 0.0, 50.0)
+  transform2 = geoml.Transform.new(t2)
 
-  -- Native occt.Geom_Curve.as_vec(...) (grunk-occt's own src/geom/geom_extras.hpp)
-  -- builds the std::vector<Handle(Geom_Curve)> geoml.interpolate_curves needs -
-  -- geoml.curve_vec/src/curve_vec_extras.hpp's own hand-rolled escape hatch is
-  -- gone now that grunk's with_std_vector() supports Handle(X) element types
-  -- directly (see DESIGN.md).
-  cv = occt.Geom_Curve.as_vec(root_curve, mid_curve, tip_curve)
-  loft_surface = geoml.interpolate_curves(cv, 3, false)
+  t3 = helpers.make_gtrsf(50.0, 100.0, 1.0, 20.0, 100.0)
+  transform3 = geoml.Transform.new(t3)
 
-  -- Native occt.BRepBuilderAPI_MakeFace call - its own generated Handle(Geom_Surface)
-  -- constructor overload now correctly accepts loft_surface's own concrete
-  -- Handle(Geom_BSplineSurface) type directly (see DESIGN.md).
-  face = occt.BRepBuilderAPI_MakeFace.new(loft_surface, face_tolerance):Face()
+  -- geo::transform(base_curve, transformN) applied directly to the ONE base curve
+  -- (not to individual points, re-interpolated per station) - transformN(base_curve)
+  -- below uses the new Handle(Geom_Curve) overload (src/transform_extras.hpp).
+  curve1 = transform1(base_curve)
+  curve2 = transform2(base_curve)
+  curve3 = transform3(base_curve)
+
+  -- geo::interpolate_curves([curve1, curve2, curve3]) -> geoml.interpolate_curves,
+  -- fed via the native occt.Geom_Curve.as_vec(...) (grunk-occt's own
+  -- src/geom/geom_extras.hpp) - no degree/continuity arguments in the original
+  -- either, so the single-argument overload is used here too.
+  cv = occt.Geom_Curve.as_vec(curve1, curve2, curve3)
+  loft_surface = geoml.interpolate_curves(cv)
+
+  -- grocc::BRepBuilderAPI_MakeFace(wing_surf, tol) -> grocc::BRepTools::Write(...) -
+  -- native occt.BRepBuilderAPI_MakeFace/occt.export_brep, unchanged from the original.
+  face = occt.BRepBuilderAPI_MakeFace.new(loft_surface, tol):Face()
 
   ok = occt.export_brep(face, "wing_loft.brep")
 outputs:

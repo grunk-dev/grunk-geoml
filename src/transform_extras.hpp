@@ -55,12 +55,53 @@
 // extra_includes entry in this project - Transform.h only forward-declares it.
 #include "geoml_sol_traits.hpp"
 #include <Geom_Surface.hxx>
+#include <Geom_Curve.hxx>
 
 #include <gp_GTrsf.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS.hxx>
+#include <TopLoc_Location.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRep_Tool.hxx>
+
+namespace geoml_plugin {
+
+// geoml::Transform has no Handle(Geom_Curve) overload of its own (confirmed by
+// inspection of geoml/transformations/Transform.h and geoml/geometry/
+// Transformation.h/.cpp - only TopoDS_Shape/PNamedShape/gp_Pnt/Handle(Geom_Surface)/
+// gp_Vec) - wing_loft.grr.yml (ported from legacy-geo's own wing.grr, whose
+// geo::transform free function DID support curves, in a since-removed ancestor of
+// this API) needs exactly this. Filled in here using the identical technique
+// geoml's own Transformation::Transform(Handle(Geom_Surface)) already uses for the
+// sibling 2D case (geoml/src/geometry/Transformation.cpp): wrap the curve in a
+// topological shape (here, a TopoDS_Edge instead of a TopoDS_Face), transform that
+// shape via the already-correct, already-public Transform::operator()(TopoDS_Shape)
+// (internally Copy=Standard_True, so the source geometry is never mutated - verified
+// directly, see scratchpad test_transform_curve.cpp), then extract the transformed
+// curve back out. BRep_Tool::Curve returns the edge's own curve relative to a
+// TopLoc_Location (an OCCT placement-sharing optimization, not baked into the
+// geometry itself) - the final ->Transform(loc.Transformation()) bakes that location
+// into the returned curve's own control points, exactly mirroring
+// Transformation::Transform(Handle(Geom_Surface))'s own final
+// `surfCopy->Transform(L.Transformation())` step. Without this last step the
+// returned curve would silently NOT reflect the transform at all from Lua's own
+// point of view (a Handle(Geom_Curve) pushed to Lua carries no Location).
+inline opencascade::handle<Geom_Curve> transform_curve(geoml::Transform const& self, opencascade::handle<Geom_Curve> const& curve)
+{
+    TopoDS_Edge tmp_edge = BRepBuilderAPI_MakeEdge(curve);
+    TopoDS_Edge transformed_edge = TopoDS::Edge(self(static_cast<TopoDS_Shape const&>(tmp_edge)));
+    TopLoc_Location loc;
+    Standard_Real first, last;
+    opencascade::handle<Geom_Curve> result = BRep_Tool::Curve(transformed_edge, loc, first, last);
+    result->Transform(loc.Transformation());
+    return result;
+}
+
+} // namespace geoml_plugin
 
 inline void register_transform_extras(grunk::plugin_namespace& ns)
 {
@@ -88,10 +129,28 @@ inline void register_transform_extras(grunk::plugin_namespace& ns)
         // works correctly inside a real recipe's steps: block, not just a plain
         // script - see examples/wing_loft.grr.yml/load_carrier.grr.yml, both
         // updated to call xf(...) directly instead of xf:apply(...).
+        // Order matters here, and is not just cosmetic: sol2's own unique-usertype-
+        // aware checker (invoked for a by-value Handle(X) candidate, needed for
+        // Handle(Derived)->Handle(Base) conversion - see DESIGN.md) crashes outright
+        // (does not cleanly reject) when checked against an argument that is a
+        // plain VALUE usertype (gp_Pnt/gp_Vec/TopoDS_Shape), not any kind of unique
+        // usertype at all - confirmed directly (xf(a_gp_Vec) segfaulted with the
+        // Handle(Geom_Curve) candidate listed before gp_Vec, a real, reproducible
+        // sol2 dispatch bug, not a fluke). sol::overload tries candidates in
+        // declaration order and stops at the first that matches without crashing,
+        // so every plain-value-type candidate (TopoDS_Shape/gp_Pnt/gp_Vec) is listed
+        // BEFORE both Handle(X) candidates (Handle(Geom_Surface)/Handle(Geom_Curve))
+        // - this only protects calls whose argument matches one of the 3 plain
+        // types; a genuinely ambiguous/unsupported argument would still risk this
+        // same crash reaching the Handle(X) candidates, but that's true of any
+        // Handle(X)-mixed overload set throughout this project (e.g. grunk-occt's
+        // own generated BRepBuilderAPI_MakeEdge overload set has the identical
+        // shape/ordering, apparently never hit by its own test suite).
         .add_member_function(sol::meta_function::call, sol::overload(
             [](geoml::Transform const& self, const TopoDS_Shape& shape) -> TopoDS_Shape { return self(shape); },
             [](geoml::Transform const& self, const gp_Pnt& point) -> gp_Pnt { return self(point); },
-            [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); },
-            [](geoml::Transform const& self, const gp_Vec& vec) -> gp_Vec { return self(vec); }
+            [](geoml::Transform const& self, const gp_Vec& vec) -> gp_Vec { return self(vec); },
+            [](geoml::Transform const& self, opencascade::handle<Geom_Curve> curve) -> opencascade::handle<Geom_Curve> { return geoml_plugin::transform_curve(self, curve); },
+            [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); }
         ));
 }

@@ -2,53 +2,19 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-# Faithfully ported from an old draft PR (grunk-dev/grunk#189,
-# examples/load_carrier/load_carrier.grr, written against the pre-rewrite grocc/geo
-# plugins) - every operation below is the modern equivalent of that recipe's own
-# step, in the same order: a 4-point rectangle -> extrude into a box -> cut 4 small
-# corner-dimple spheres -> fillet the 4 long edges -> hollow into an open-ended tube.
-# Confirmed against the PR's own reference renders (carrier_1.png/carrier_2.png,
-# fetched from the PR directly) that this is a rounded rectangular tube, open at
-# both ends, with 4 small spherical dimples cut into the top near the corners - not
-# a closed box.
+# Line-by-line ported from the real original C++ source this recipe was extracted
+# from (geoml repo commit 2ecbda9, "Adjust CMakeLists, finalise the modelling of the
+# parametric Lastentraeger [German: "load carrier"] ..." - examples/
+# fuselage_wing_configuration.cpp's own "Box with Holes" section), not reconstructed
+# from scratch to merely look similar - see DESIGN.md's "load_carrier/wing_loft:
+# real line-by-line re-port" for the full story of how the FIRST port of this recipe
+# got this wrong (fabricated a wall_thickness parameter that never existed in the
+# original at all) and how this version was verified instead (a standalone C++
+# diagnostic reconstructing the original algorithm exactly and inspecting real
+# edge/face indices against this project's own OCCT 7.9 build).
 #
-# Uses the `modules:` block (grunk's docs/usage.rst, "Modules in Recipes"), not bare
-# `steps:` lines, for every OCCT builder-pattern sequence that mutates the same
-# object across several calls (BRep_Builder's MakeCompound/Add, BRepFilletAPI_
-# MakeFillet's own repeated Add, occt.TopoDS_Builder's MakeShell/Add) - found the
-# hard way that this is not optional: a bare `steps:` sequence of several mutating
-# calls on the same object silently loses all but (at most) one of them under
-# grunk's own decorated/parametric recipe environment (confirmed directly - a
-# 4-sphere compound built this way came back with 0 faces, not 4, no error at all),
-# matching grunk-occt's own DESIGN.md's documented (until now untested) concern
-# about non-const-reference out-params inside a recipe's `steps:` block. A `modules:`
-# function call is instead a single, non-parametric compute node (see docs/usage.rst),
-# so every mutating call inside it genuinely runs, in order, exactly once - verified
-# directly (see DESIGN.md) before relying on it here.
-#
-# Two further, real differences from the original, neither a geometric simplification:
-#   - Edge/face indices: the original's own index_list=[1,2,5,8] (edges to fillet)
-#     and n_1/n_5 (faces to remove) are OCCT-topological-numbering-dependent, not
-#     portable constants - the original recipe's own comment admits these were
-#     "found by trial and error" against whatever OCCT version it was built with.
-#     Re-derived here for our own OCCT 7.9 build via a standalone C++ diagnostic
-#     inspecting each edge's own endpoint coordinates (see DESIGN.md) - edges 0/1/4/7
-#     are the 4 "long" edges running along the extrusion direction (matching every
-#     rectangle corner), and faces 4/5 are the two end caps (x=0 and x=box_length) -
-#     exactly the faces the reference renders show open.
-#   - geo::make_shell's own wall thickness: the original C++ driver calls
-#     geo::make_shell(cut_shape) with no thickness argument at all, so its default
-#     value isn't recoverable from the available source - occt.BRepOffsetAPI_
-#     MakeThickSolid.MakeThickSolidBySimple(...) (the only thick-solid variant this
-#     generator currently accepts - the fuller constructor takes a
-#     TopTools_ListOfShape of faces to remove directly, a container shape this
-#     generator has no conversion support for) instead takes an *open* shell (built
-#     here from the 4 side faces only, skipping the 2 end caps) and offsets it -
-#     geometrically equivalent to "shell then remove these 2 faces" (the header's
-#     own doc comment: "Non-closed shell or face is expected as input" for exactly
-#     this construction). wall_thickness below is a reasonable value chosen to match
-#     the reference renders' own visible wall-to-cross-section proportion, not a
-#     recovered original constant.
+# uses: grunk: 0.2.2, grocc: 0.1.1, geo: 0.2.0 in the .grr predecessor - the modern
+# occt/geoml namespaces below are 1:1 stand-ins throughout.
 uses:
   grunk: 0.5.0
   occt: 0.1.0
@@ -60,9 +26,14 @@ parameters:
   sphere_position: 3.0
   sphere_radius: 0.2
   radius_fillet: 0.05
-  wall_thickness: 0.15
 modules:
   helpers: |
+    -- geoml::make_compound(shapes) (geoml/src/geoml/utility/modeling.cpp) -
+    -- BRep_Builder::MakeCompound + one Add per shape. Needs `modules:` (not bare
+    -- steps:), same reason as everywhere else in this recipe: several mutating
+    -- builder:Add(...) calls on the same object are unreliable across separate
+    -- steps: lines under grunk's own decorated/parametric environment - see this
+    -- repo's own DESIGN.md "Real recipe-API bug" entry.
     function make_compound(s1, s2, s3, s4)
       local compound = occt.TopoDS_Compound.new()
       local builder = occt.BRep_Builder.new()
@@ -74,8 +45,18 @@ modules:
       return compound
     end
 
-    -- Fillets the 4 long edges (0/1/4/7 - see this recipe's own header comment) of
-    -- shape in one atomic call, returning the rounded result.
+    -- The original's own make_fillet(o_extruded_shape, {1,2,5,8}, radius)
+    -- (geoml/src/geoml/utility/modeling.cpp's make_fillet(shape, edge_indices,
+    -- radius) overload) indexes DIRECTLY into OCCT's own 1-based
+    -- TopTools_IndexedMapOfShape (edgeMap(i), no +/-1 adjustment at all) - a
+    -- different convention from this plugin's own geoml.nth_edge (0-based, see
+    -- src/topexp_extras.hpp). {1,2,5,8} (1-based) is therefore {0,1,4,7} 0-based -
+    -- the SAME 4 edges, not "different, re-derived" ones. Confirmed empirically
+    -- (not just arithmetic) via a standalone diagnostic (see DESIGN.md): rebuilding
+    -- o_extruded_shape exactly per the original C++ and inspecting every one of its
+    -- 12 edges' own endpoint coordinates shows 0-based indices 0/1/4/7 are exactly
+    -- the 4 "long" edges running the full extrusion length (dx=10, dy=dz=0) - the
+    -- ones a rounded rectangular tube actually needs filleted.
     function fillet_long_edges(shape, radius)
       local fillet = occt.BRepFilletAPI_MakeFillet.new(shape)
       fillet:Add(radius, geoml.nth_edge(shape, 0))
@@ -85,23 +66,49 @@ modules:
       return fillet:Shape()
     end
 
-    -- Builds an open shell from shape's own 4 side faces (skipping the 2 end caps,
-    -- faces 4/5 - see this recipe's own header comment) and offsets it inward by
-    -- thickness, in one atomic call.
-    function hollow_open_ended(shape, thickness)
-      local open_shell = occt.TopoDS_Shell.new()
+    -- geoml::make_shell(shape) (geoml/src/geoml/utility/modeling.cpp): wraps EVERY
+    -- one of shape's own faces into a fresh TopoDS_Shell - purely topological, no
+    -- offset/thickness of any kind (this is the operation the recipe's FIRST port
+    -- got wrong, inventing a BRepOffsetAPI_MakeThickSolid-based thin wall with a
+    -- fabricated wall_thickness parameter that has no counterpart in the original
+    -- at all - see DESIGN.md).
+    function make_shell(shape)
+      local shell = occt.TopoDS_Shell.new()
       local builder = occt.BRep_Builder.new()
-      builder:MakeShell(open_shell)
-      builder:Add(open_shell, geoml.nth_face(shape, 0))
-      builder:Add(open_shell, geoml.nth_face(shape, 1))
-      builder:Add(open_shell, geoml.nth_face(shape, 2))
-      builder:Add(open_shell, geoml.nth_face(shape, 3))
-      local thick = occt.BRepOffsetAPI_MakeThickSolid.new()
-      thick:MakeThickSolidBySimple(open_shell, -thickness)
-      thick:Build()
-      return thick:Shape()
+      builder:MakeShell(shell)
+      local n = geoml.count_faces(shape)
+      for i = 0, n - 1 do
+        builder:Add(shell, geoml.nth_face(shape, i))
+      end
+      return shell
+    end
+
+    -- geoml::remove_faces(shell, faces) (geoml/src/geoml/utility/modeling.cpp): a
+    -- fresh Shell containing every one of shell's own faces EXCEPT the ones
+    -- IsSame() as face1/face2 - again purely topological, no thickness change.
+    -- face1/face2 are the original's own GetFace(cut_shape, 1)/GetFace(cut_shape, 5)
+    -- (0-based, same convention as geoml.nth_face - confirmed via the same
+    -- diagnostic mentioned above that these are exactly the 2 flat end-cap faces,
+    -- at x=0 and x=box_length, on this OCCT 7.9 build too).
+    function remove_two_faces(shell, face1, face2)
+      local new_shell = occt.TopoDS_Shell.new()
+      local builder = occt.BRep_Builder.new()
+      builder:MakeShell(new_shell)
+      local n = geoml.count_faces(shell)
+      for i = 0, n - 1 do
+        local f = geoml.nth_face(shell, i)
+        if not f:IsSame(face1) and not f:IsSame(face2) then
+          builder:Add(new_shell, f)
+        end
+      end
+      return new_shell
     end
 steps: |
+  -- Rectangle corner points: o_corner1 given, o_corner2 = o_corner1 + vec_y*rect_width,
+  -- o_corner3 = o_corner2 + vec_z*rect_hight, o_corner4 = o_corner1 + vec_z*rect_hight -
+  -- geoml::move(point, direction, factor) = point + factor*direction (direction used
+  -- as-is, not normalized - both vec_y/vec_z/extr_dir below are already unit vectors,
+  -- so this makes no numeric difference here), same as the current geoml.translate.
   c1 = occt.gp_Pnt.new(0.0, 0.0, 0.0)
   vec_y = occt.gp_Vec.new(0.0, 1.0, 0.0)
   vec_z = occt.gp_Vec.new(0.0, 0.0, 1.0)
@@ -111,9 +118,15 @@ steps: |
   c3 = geoml.translate(c2, vec_z, rect_hight)
   c4 = geoml.translate(c1, vec_z, rect_hight)
 
+  -- geoml::surface_from_4_points([c1,c2,c3,c4]) (a bilinear B-spline patch) -
+  -- geoml.create_face(c1,c2,c3,c4) (a BRepFill::Face ruled surface) is a faithful
+  -- modern equivalent for this specific, planar/rectangular input: both build the
+  -- same planar quad bounded by the same 4 corners in the same loop order.
   srf = geoml.create_face(c1, c2, c3, c4)
 
-  extr_vec = occt.gp_Vec.new(extr_dir:X() * box_length, extr_dir:Y() * box_length, extr_dir:Z() * box_length)
+  -- geoml::scale_vector(extr_dir, box_length) = extr_dir.Multiplied(box_length) -
+  -- gp_Vec:Multiplied(scalar) is registered natively, no manual reconstruction needed.
+  extr_vec = extr_dir:Multiplied(box_length)
   extruded = occt.BRepPrimAPI_MakePrism.new(srf, extr_vec):Shape()
 
   -- 4 small sphere cutouts, one per corner, partway along the extrusion direction.
@@ -131,18 +144,23 @@ steps: |
 
   rounded_box = helpers.fillet_long_edges(extruded, radius_fillet)
 
-  -- Cut the 4 sphere dimples out of the rounded box.
+  -- geoml::cut_away(rounded_box, sphere_compound) = BRepAlgoAPI_Cut(rounded_box,
+  -- sphere_compound) - geoml.boolean_subtract does exactly this (same argument
+  -- order: shape minus cutting_tool), wrapped in geoml.Shape for its own API.
   rounded_box_wrapped = geoml.Shape.new(rounded_box)
   spheres_wrapped = geoml.Shape.new(sphere_compound)
   cut_shape = geoml.boolean_subtract(rounded_box_wrapped, spheres_wrapped)
   cut_topods = cut_shape:shape()
 
-  -- Re-index against cut_topods, not extruded - filleting/cutting can change a
-  -- shape's own topological numbering, and the fillet/cut here are confined to the
-  -- 4 long edges/small corner dimples, well away from the 2 flat end-cap faces, so
-  -- those 2 indices carry over unchanged (confirmed by inspecting cut_topods's own
-  -- face count/bounding boxes the same way as extruded's, see DESIGN.md).
-  load_carrier = helpers.hollow_open_ended(cut_topods, wall_thickness)
+  -- The original's own GetFace(cut_shape, 1)/GetFace(cut_shape, 5) - looked up
+  -- against cut_topods BEFORE building the shell (helpers.make_shell/remove_two_faces
+  -- only reorganize cut_topods's own existing faces into a new Shell, never change
+  -- face identity, so IsSame() against these two correctly finds them again inside
+  -- shell_prelim too).
+  face1 = geoml.nth_face(cut_topods, 1)
+  face2 = geoml.nth_face(cut_topods, 5)
+  shell_prelim = helpers.make_shell(cut_topods)
+  load_carrier = helpers.remove_two_faces(shell_prelim, face1, face2)
 
   ok = occt.export_brep(load_carrier, "load_carrier.brep")
   n_faces = geoml.count_faces(load_carrier)

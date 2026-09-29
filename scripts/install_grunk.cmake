@@ -47,6 +47,17 @@
 # project already worked around for plain Handle(X) parameters). This is what
 # lets src/curve_vec_extras.hpp's hand-written escape hatch be replaced by the
 # native occt.Geom_Curve.as_vec(...) - see DESIGN.md.
+# Bumped again 2026-09-29, to 40d8a1ebd9f020ba3481b9949437d2aafe95425a - lands a
+# real usability fix, not a bug: a mutating member function (non-const `self`,
+# void return - e.g. occt.gp_GTrsf:SetValue) called through the decorated/
+# parametric environment now throws immediately with a clear message instead of
+# silently doing nothing (grunk's own evaluation is lazy/pull-based - the
+# call's own result feature, if never read, was simply never evaluated, so the
+# real C++ mutation never ran at all). This is the exact bug that made
+# wing_loft.grr.yml's own first attempt at building its 3 gp_GTrsf transforms
+# (bare, separate SetValue(...) statements, no modules:) silently produce 3
+# untransformed/identical curves - see this repo's own DESIGN.md's
+# "load_carrier/wing_loft: real line-by-line re-port" for the full story.
 #
 # Optional -D GRUNK_INSTALL_NAME=<name>: an alternate install-directory name under
 # .deps/ (e.g. "grunk-ad" for [feature.ad.tasks]'s own invocation) - defaults to
@@ -57,7 +68,7 @@ cmake_minimum_required(VERSION 3.15)
 if(NOT DEFINED GRUNK_INSTALL_NAME)
     set(GRUNK_INSTALL_NAME "grunk")
 endif()
-set(GRUNK_REV "13ab6232fdcd7b7e20a916392cfbb607417fb143")
+set(GRUNK_REV "40d8a1ebd9f020ba3481b9949437d2aafe95425a")
 
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(GRUNK_PREFIX "${PROJECT_ROOT}/.deps/${GRUNK_INSTALL_NAME}")

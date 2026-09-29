@@ -746,3 +746,201 @@ a code bug) - not done here.
 
 `wing_fuselage_configuration` (the larger geometry-focused rewrite) remains the
 last piece of Step 6, not done here.
+
+## `load_carrier`/`wing_loft`: real line-by-line re-port (2026-09-29)
+
+The user caught, correctly, that both recipes' *first* port were not faithful
+translations at all - each one *replicated the general look* of the original with a
+new, invented construction, rather than translating the original's own operations
+one to one. Two concrete fabrications, found once actually going back to the real
+original source (not just the `.grr`/`.grr.yml` recipe text, which for both
+predates any source checked out anywhere in this workspace - the real C++ these
+recipes were extracted from had to be found in `/localdata2/klei_j0/code/geoml`'s
+own **git history**, a full independent checkout with history reaching back before
+this project's own `.deps/geoml` pin):
+
+- **`load_carrier.grr.yml`** invented a `wall_thickness` parameter and built the
+  final hollow shape via `occt.BRepOffsetAPI_MakeThickSolid` (a real offset
+  operation, genuinely thinning the walls) - but the original's own
+  `geo::make_shell`/`geo::remove_faces` (found in geoml commit `2ecbda9`,
+  "finalise the modelling of the parametric *Lastentraeger*" - German for "load
+  carrier", confirming this is the actual source) do no such thing: `make_shell`
+  just wraps *every one* of a shape's own faces into a fresh `TopoDS_Shell` (pure
+  topology, zero geometry change), and `remove_faces` deletes 2 specific faces from
+  that shell by `IsSame()` - full wall thickness is just whatever the original
+  solid's own faces already were. There is no wall-thickness *parameter* anywhere
+  in the real recipe at all.
+- **`wing_loft.grr.yml`** used a 4-point "airfoil-ish" curve, transformed via
+  translation-only `geoml.Transform` (gp_Vec) applied to raw *points*, re-interpolated
+  per station. The real `wing.grr` uses the actual 21-point NACA 2412 profile,
+  interpolates it *once*, and applies 3 real affine matrices (`geo::Transformation`,
+  general 4x4/`gp_GTrsf` - non-uniform scale **and** translation combined: chord
+  100/80/50 per station, not just repositioning) directly to that *one curve* via
+  `geo::transform(curve, transformation)`. The first port's point-then-reinterpolate
+  approach also silently dropped the per-station chord taper entirely (transformed
+  points kept the same, unscaled 4-point shape at every station).
+
+**Both re-derived by finding and reading the real original C++ these recipes were
+extracted from**, not by reasoning about what the geometry "should" look like:
+
+- `load_carrier`: `/localdata2/klei_j0/code/geoml`'s own git history, commit
+  `2ecbda939d32b6d8ed8cb3cade8fc7c2132b38ba` (`src/geoml/utility/modeling.cpp`, the
+  `make_shell`/`remove_faces`/`make_fillet`/`cut_away`/`sphere`/`make_compound`
+  implementations) plus commit `07696a431f909795332d1fd677344a5b75502f44`
+  (`examples/fuselage_wing_configuration.cpp`'s own "Box with Holes" section - the
+  exact call sequence the `.grr` recipe was extracted from, confirmed by identical
+  parameter values and identical `GetFace(cut_shape, 1)`/`GetFace(cut_shape, 5)`/
+  `index_list {1,2,5,8}` constants).
+- `wing_loft`: `legacy-geo/tests/test_data/wing.grr` itself already has the real,
+  exact 21-point NACA 2412 coordinates and the 3 real transform matrices inline (no
+  need to dig further for those) - the only real research needed was finding what
+  `geo::transform`/`geo::Transformation` actually did with a `Handle(Geom_Curve)`
+  (see below).
+
+**`load_carrier`'s own edge/face indices re-verified, not re-derived from scratch**:
+a standalone C++ diagnostic (`scratchpad/handlex-spike/load_carrier_diag.cpp`)
+rebuilds the original algorithm exactly (own `move`/`surface_from_4_points`
+stand-ins, matching the real modeling.cpp source) and inspects every edge/face's
+own real geometry against this project's OCCT 7.9 build. Result: `make_fillet`'s
+own `{1,2,5,8}` (1-based, direct `TopTools_IndexedMapOfShape` index - the original's
+own real convention, confirmed from its C++ source: `edgeMap(i)`, no offset) and
+`GetFace`'s own `1`/`5` (0-based, `iFace+1` internally - also confirmed from
+source) are **exactly** the 4 long edges and 2 end-cap faces on this OCCT 7.9
+build too, bit for bit the same numbers as the original recipe's own literal
+values - not a "found by trial and error for our own OCCT version" re-derivation as
+the first port's own (inaccurate) framing claimed. `geoml.nth_edge`/`geoml.nth_face`
+being 0-based (this plugin's own convention, `src/topexp_extras.hpp`) is why the
+edge indices become `{0,1,4,7}` here - a index-base conversion of the *same* edges,
+not different ones.
+
+**A real, genuine API gap found and filled, not worked around**: `geo::transform`
+(the ancient free function this recipe needs, supporting `Handle(Geom_Curve)`) has
+no equivalent anywhere in current `geoml` - `geoml::Transform`'s own `operator()`
+only covers `TopoDS_Shape`/`PNamedShape`/`gp_Pnt`/`Handle(Geom_Surface)`/`gp_Vec`
+(confirmed by reading `geoml/transformations/Transform.h` and
+`geoml/geometry/Transformation.h`/`.cpp` directly - not assumed). Filled in
+`src/transform_extras.hpp` using the *exact* technique
+`geoml::Transformation::Transform(Handle(Geom_Surface))` itself already uses for
+the sibling 2D case (confirmed by reading that method's own real implementation):
+wrap the curve in a `TopoDS_Edge`, transform that edge via the already-public,
+already-correct `Transform::operator()(TopoDS_Shape)` (internally
+`Copy=Standard_True`, so the source geometry is never mutated), then extract the
+transformed curve back out via `BRep_Tool::Curve(edge, location, first, last)` and
+bake `location` into it via `->Transform(location.Transformation())` - the same
+final step `Transformation::Transform(Handle(Geom_Surface))` itself takes, without
+which the returned curve would silently *not* reflect the transform at all from
+Lua's own point of view. Verified in isolation first
+(`scratchpad/handlex-spike/test_transform_curve.cpp`, exact expected coordinates,
+plus confirming the original curve stays unmutated) before being used in the real
+plugin.
+
+**Two more real, `Transform`-specific sol2 crashes found and fixed while wiring
+this in** (both genuine dispatch bugs, not modeling mistakes) - `sol::overload`'s
+own resolution logic tries each candidate lambda in declaration order and stops at
+the first that matches *without crashing*, but the type-*checking* itself for a
+mismatched candidate is not always safe:
+
+1. **A by-value `Handle(X)` candidate's own checker segfaults outright (does not
+   cleanly reject) when checked against a plain VALUE usertype argument**
+   (`gp_Pnt`/`gp_Vec`/`TopoDS_Shape`, not any kind of unique usertype at all) -
+   confirmed directly: `xf(a_gp_Vec)` crashed with the new `Handle(Geom_Curve)`
+   candidate listed before the `gp_Vec` one. Fixed by listing every plain
+   value-type candidate (`TopoDS_Shape`/`gp_Pnt`/`gp_Vec`) *before* either `Handle(X)`
+   candidate in the `operator()` overload set (`src/transform_extras.hpp`'s own
+   comment on the overload set has the full writeup) - this only protects calls
+   whose argument actually matches one of the 3 plain types; a genuinely
+   unsupported argument would still risk hitting this same crash in the `Handle(X)`
+   candidates, a risk this project's other `Handle(X)`-mixed overload sets
+   (e.g. grunk-occt's own generated `BRepBuilderAPI_MakeEdge`) already carry too,
+   apparently never triggered there.
+2. **A *new*, previously undocumented ELF-symbol-interposition hazard**: a test's
+   own `.as<opencascade::handle<Geom_Curve>>()` call (inspecting a returned curve
+   via plain C++ instead of Lua) instantiates sol2's unique-usertype machinery for
+   that type *inside the test's own translation unit* - which is compiled into the
+   `runUnitTests` **executable**, not `geoml_plugin.so`. Without
+   `src/geoml_sol_traits.hpp`'s own `rebind_actual_type`/`SOL_BASE_CLASSES`
+   declarations visible right there too, that instantiation happens with sol2's
+   stock, uninformed defaults - and because the *main executable's* own global
+   symbols take priority over a `dlopen`ed shared library's own weak symbols for
+   the same template instantiation (ordinary ELF dynamic-linking symbol
+   interposition rules, not a sol2-specific mechanism), this uninformed version,
+   compiled into `runUnitTests` itself, silently overrides `geoml_plugin.so`'s own
+   correctly-informed one for the rest of the **whole process** - not just the
+   test that caused it. Confirmed directly: `tests/test_transformations.cpp`'s own
+   `TranslationAppliesToAnInterpolatedCurve` test segfaulted deep inside
+   `geoml_plugin.so`'s own `transform_curve` call *only* when run as part of the
+   full `runUnitTests` binary (never in an isolated, standalone reproduction of the
+   exact same Lua-facing call) - root-caused to that same test file's own
+   `Geom_Curve.hxx` include plus the `.as<opencascade::handle<Geom_Curve>>()` call.
+   Fixed by including `src/geoml_sol_traits.hpp` (the same file this whole
+   Handle(X) mechanism already needs everywhere else in this plugin) directly in
+   `tests/test_transformations.cpp` too. **General lesson for this whole project,
+   not just this one file**: any translation unit that performs a `Handle(X)`
+   unique-usertype conversion - `.as<opencascade::handle<T>>()`, a bound function
+   parameter, `with_std_vector<Handle<T>>()`, anything - needs its own copy of that
+   `T`'s `rebind_actual_type`/`SOL_BASE_CLASSES`/`SOL_DERIVED_CLASSES` visible via
+   `#include`, **even in a test file that never gets `dlopen`ed itself** - the
+   executable that statically links the test and then `dlopen`s the real plugin is
+   just as much a "translation unit that touches this" as the plugin's own `.cpp`
+   files are.
+
+Both recipes' own permanent regression coverage: `tests/test_gc.cpp`/
+`tests/test_geomapi.cpp` (grunk-occt, unrelated to this section) already cover the
+underlying native-Handle(X) mechanisms; this plugin's own
+`tests/test_transformations.cpp` gained `TranslationAppliesToAnInterpolatedCurve`
+for the new `Handle(Geom_Curve)` overload itself (a general affine/`gp_GTrsf` case
+is exercised for real by `wing_loft.grr.yml` directly, not duplicated in a unit
+test, since `gp_GTrsf` isn't registered as a usertype by `geoml_plugin.so` on its
+own).
+
+**`ok=1` is not the same as "correct geometry" - caught by the user actually
+looking at the exported shape, not by anything in this session's own
+verification.** The claim two paragraphs up ("`wing_loft` -> `ok=1`, curve
+endpoint coordinates matching the expected scaled/translated values exactly") was
+wrong: `export_brep`'s own `ok` flag only reports whether *writing the file*
+succeeded, and every numeric check this session ran against the real
+`occt.gp_GTrsf`-based transform (`test_wing_loft_recipe.cpp`,
+`test_transform_curve.cpp`) used a plain `create_env()`, never the real
+recipe's own **decorated/parametric** environment - so none of it actually
+exercised the failure mode that matters. The real `wing_loft.brep` showed a wing
+built from 3 *visually identical* airfoil sections (no taper, no span - "two
+points and no wing" from most viewing angles), confirmed directly by inspecting
+the exported BREP's own `Surfaces` section: every row's 3 control points (one
+per station) were numerically identical, all still at the *unscaled* `chord=1`
+coordinates `naca2412` itself uses.
+
+**Root cause: the exact same, already-known-and-documented grunk-core limitation
+this session's own `load_carrier.grr.yml` already works around, just not applied
+to this new recipe's own `gp_GTrsf` construction.** `t1:SetValue(1,1,100.0);
+t1:SetValue(2,2,100.0); t1:SetValue(3,3,1.0)` is three separate mutating calls on
+the same object across separate bare `steps:` lines - precisely the shape this
+file's own "Real recipe-API bug: repeated mutating calls on one object are
+unreliable in bare `steps:`" section above already documents and already fixes
+for `BRep_Builder`/`BRepFilletAPI_MakeFillet` via `modules:`. Confirmed directly,
+isolated from everything else (a minimal `gp_GTrsf`+`gp_Pnt` reproduction, no
+`Geom_Curve` involved at all): built via bare, separate `SetValue` calls inside
+`state.create_parametric_env()`, the resulting matrix silently kept its
+default-identity values - both of two differently-configured `gp_GTrsf`s produced
+the *same*, untransformed point. Wrapping the exact same `SetValue` sequence in a
+real `modules:` function (`state.run_module_script`, not just a plain Lua
+function defined inline - confirmed that distinction matters too: a plain
+in-script `function ... end` does *not* get the same atomic treatment, only a
+real module does) fixed it immediately, in isolation, before touching the real
+recipe.
+
+**Fixed in `wing_loft.grr.yml`**: `t1`/`t2`/`t3`'s own construction moved into a
+new `modules: helpers` function, `make_gtrsf(sx, sy, sz, ty, tz)`, mirroring
+`load_carrier.grr.yml`'s own established pattern exactly. Re-verified by
+inspecting the real exported `wing_loft.brep` directly (not just checking `ok`):
+the 3 control-point stations per row are now genuinely different, at the
+expected scaled magnitudes (root ~100, mid ~80 with a `z` shift, tip ~50 with
+`y`/`z` shifts) - a real, visibly tapered/swept wing, not 3 collapsed
+copies of the same unscaled airfoil.
+
+Verified end to end, properly this time: both recipes re-run for real via
+`pixi run run_examples` (`load_carrier` -> `ok=1`, 16 faces after the 2 end-caps
+are removed from an 18-face cut solid, matching the standalone diagnostic
+exactly; `wing_loft` -> `ok=1`, and the exported BREP's own control points now
+genuinely differ per station as described above - checked directly, not just
+inferred from `ok`), full `runUnitTests` (23/23) and `test_hooks.py` (18/18)
+green.
