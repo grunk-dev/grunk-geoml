@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_exports.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/exports/CADExporter.h>
 #include <geoml/internal/exports/CCPACSImportExport.h>

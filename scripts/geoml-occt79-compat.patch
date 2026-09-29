@@ -100,6 +100,30 @@ index 0a55da1..dd4ffd5 100644
  
  #include <math_Matrix.hxx>
 +#include <math_Vector.hxx>
- 
+
  namespace geoml
  {
+diff --git a/src/common/sorting.h b/src/common/sorting.h
+index 7cc9199..a932e4c 100644
+--- a/src/common/sorting.h
++++ b/src/common/sorting.h
+@@ -19,6 +19,7 @@
+ #define SORTING_H
+
+ #include <algorithm>
++#include <stdexcept>
+
+ namespace geoml
+ {
+diff --git a/src/geometry/IntersectionPoint.h b/src/geometry/IntersectionPoint.h
+index f1107bd..4a2176c 100644
+--- a/src/geometry/IntersectionPoint.h
++++ b/src/geometry/IntersectionPoint.h
+@@ -20,6 +20,7 @@
+ #define INTERSECTIONPOINTS_H
+
+ #include <vector>
++#include <gp_Pnt.hxx>
+
+ //This struct is used by GetIntersectionPoint(const TopoDS_Wire& wire1, const TopoDS_Wire& wire2,[...]) in common/CommonFunctions.h
+ struct IntersectionPoint {

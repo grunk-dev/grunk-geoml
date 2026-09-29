@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_contrib.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/contrib/MakeLoops.hxx>
 #include <geoml/internal/contrib/MakePatches.hxx>
@@ -132,77 +133,77 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
     ));
     ns.register_function("SurfTools_UReparametrize", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, sol::object theUfirst, sol::object theUlast) { SurfTools::UReparametrize(theS, geoml_plugin::to_real(theUfirst), geoml_plugin::to_real(theUlast)); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, sol::object theUfirst, sol::object theUlast) { SurfTools::UReparametrize(theS, geoml_plugin::to_real(theUfirst), geoml_plugin::to_real(theUlast)); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Real theUfirst, const Standard_Real theUlast) { SurfTools::UReparametrize(theS, theUfirst, theUlast); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Real theUfirst, const Standard_Real theUlast) { SurfTools::UReparametrize(theS, theUfirst, theUlast); }
 #endif
         );
     ns.register_function("SurfTools_VReparametrize", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, sol::object theVfirst, sol::object theVlast) { SurfTools::VReparametrize(theS, geoml_plugin::to_real(theVfirst), geoml_plugin::to_real(theVlast)); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, sol::object theVfirst, sol::object theVlast) { SurfTools::VReparametrize(theS, geoml_plugin::to_real(theVfirst), geoml_plugin::to_real(theVlast)); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Real theVfirst, const Standard_Real theVlast) { SurfTools::VReparametrize(theS, theVfirst, theVlast); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Real theVfirst, const Standard_Real theVlast) { SurfTools::VReparametrize(theS, theVfirst, theVlast); }
 #endif
         );
     ns.register_function("SurfTools_USmoothing", sol::overload(
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, sol::object theTol) { SurfTools::USmoothing(theS, theCont, geoml_plugin::to_real(theTol)); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, sol::object theTol) { SurfTools::USmoothing(theS, theCont, geoml_plugin::to_real(theTol)); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, const Standard_Real theTol) { SurfTools::USmoothing(theS, theCont, theTol); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, const Standard_Real theTol) { SurfTools::USmoothing(theS, theCont, theTol); }
 #endif
         ,
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, sol::object theTol, const Standard_Boolean theInsertKnots) { SurfTools::USmoothing(theS, theCont, geoml_plugin::to_real(theTol), theInsertKnots); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, sol::object theTol, const Standard_Boolean theInsertKnots) { SurfTools::USmoothing(theS, theCont, geoml_plugin::to_real(theTol), theInsertKnots); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, const Standard_Real theTol, const Standard_Boolean theInsertKnots) { SurfTools::USmoothing(theS, theCont, theTol, theInsertKnots); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, const Standard_Real theTol, const Standard_Boolean theInsertKnots) { SurfTools::USmoothing(theS, theCont, theTol, theInsertKnots); }
 #endif
         
     ));
     ns.register_function("SurfTools_VSmoothing", sol::overload(
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, sol::object theTol) { SurfTools::VSmoothing(theS, theCont, geoml_plugin::to_real(theTol)); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, sol::object theTol) { SurfTools::VSmoothing(theS, theCont, geoml_plugin::to_real(theTol)); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, const Standard_Real theTol) { SurfTools::VSmoothing(theS, theCont, theTol); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, const Standard_Real theTol) { SurfTools::VSmoothing(theS, theCont, theTol); }
 #endif
         ,
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, sol::object theTol, const Standard_Boolean theInsertKnots) { SurfTools::VSmoothing(theS, theCont, geoml_plugin::to_real(theTol), theInsertKnots); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, sol::object theTol, const Standard_Boolean theInsertKnots) { SurfTools::VSmoothing(theS, theCont, geoml_plugin::to_real(theTol), theInsertKnots); }
 #else
-            [](opencascade::handle<Geom_BSplineSurface> & theS, const Standard_Integer theCont, const Standard_Real theTol, const Standard_Boolean theInsertKnots) { SurfTools::VSmoothing(theS, theCont, theTol, theInsertKnots); }
+            [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Integer theCont, const Standard_Real theTol, const Standard_Boolean theInsertKnots) { SurfTools::VSmoothing(theS, theCont, theTol, theInsertKnots); }
 #endif
         
     ));
     ns.register_function("SurfTools_ConcatenateSurfacesV", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
 #else
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, theTol, theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, theTol, theS); }
 #endif
         );
     ns.register_function("SurfTools_ConcatenateSurfacesU", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
 #else
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, theTol, theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, theTol, theS); }
 #endif
         );
     ns.register_function("SurfTools_ConcatenateSurfaces", sol::overload(
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const TColGeom_SequenceOfSurface & theSurfaces, sol::object theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theSurfaces, geoml_plugin::to_real(theTol), theS); }
+            [](const TColGeom_SequenceOfSurface & theSurfaces, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theSurfaces, geoml_plugin::to_real(theTol), theS); }
 #else
-            [](const TColGeom_SequenceOfSurface & theSurfaces, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theSurfaces, theTol, theS); }
+            [](const TColGeom_SequenceOfSurface & theSurfaces, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theSurfaces, theTol, theS); }
 #endif
         ,
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
 #else
-            [](const opencascade::handle<Geom_BSplineSurface> & theS1, const opencascade::handle<Geom_BSplineSurface> & theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> & theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theS1, theS2, theTol, theS); }
+            [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfaces(theS1, theS2, theTol, theS); }
 #endif
         
     ));

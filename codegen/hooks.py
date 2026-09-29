@@ -238,6 +238,24 @@ class Hooks(generate.CodeGenerator):
             if self._ad_variant:
                 return f"sol::object {param.name}", f"{NS}::to_real({param.name})"
             return None  # primary variant: plain Standard_Real spelling, builtin fallback is correct
+        if kind == "handle":
+            # Emitted BY VALUE - mirrors grunk-occt's own identical override,
+            # see that file's own (longer) comment for the full "why": sol2's
+            # own base-class-aware Handle(Derived)->Handle(X) unique-usertype
+            # conversion (sol::detail::inheritance<T>::type_unique_cast, needs
+            # SOL_BASE_CLASSES/SOL_DERIVED_CLASSES - generated/
+            # sol_base_classes.hpp) only ever applies to a *by-value* parameter
+            # (qualified_checker/qualified_getter explicitly exclude reference
+            # parameters from that whole code path) - a Handle is a cheap
+            # smart pointer to copy (O(1) refcount increment), so this is
+            # always safe. This is this plugin's own equivalent of the fix
+            # that resolved geoml.interpolate_curves's real segfault (see
+            # DESIGN.md) - curve_vec_extras.hpp's own exact-type-only
+            # workaround is no longer needed once every Handle(X) parameter
+            # generated this way accepts any registered subtype directly.
+            m = HANDLE_PATTERN.match(param.base)
+            handle_type = f"opencascade::handle<{m.group(1)}>"
+            return f"{handle_type} {param.name}", param.name
         if kind == "array1":
             elem = _array_element_type(param.canonical, ARRAY1_PATTERN)
             fn = "to_real_array1" if elem in REAL_ELEMENT_SPELLINGS else "to_array1"

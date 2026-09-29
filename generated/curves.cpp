@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "curves.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/curves/BlendCurve.h>
 #include <geoml/curves/curves.h>

@@ -6,30 +6,18 @@
 # plugins' own recipe): an airfoil point list -> geo::interpolate_points (base
 # curve) -> geo::transform x3 (three span-wise placements) -> geo::interpolate_curves
 # (lofts the three curves into one surface) -> grocc::BRepBuilderAPI_MakeFace ->
-# grocc::BRepTools::Write.
-#
-# The final loft-to-surface step has no working equivalent here yet:
-# geoml.interpolate_curves (geoml/surfaces/surfaces.h, the direct modern equivalent
-# of legacy's geo::interpolate_curves) segfaults on this plugin's own build for
-# *any* input tried (2 and 3 simple, non-degenerate section curves both crash,
-# reproducibly, in a standalone spike well before this recipe's own concern) - a
-# real bug, most likely a further geoml-vs-OCCT-7.9 incompatibility in the
-# curve-network/Gordon-surface implementation beyond the 6 fixes
-# scripts/geoml-occt79-compat.patch already applies (see DESIGN.md), not a
-# binding/generator problem: geoml.curve_vec(...) (src/curve_vec_extras.hpp, a
-# small hand-written escape hatch this example needed - std::vector<Handle(Geom_Curve)>
-# has the same "no plain-table-to-vector conversion for a reference parameter"
-# limitation as any other std::vector<T> parameter throughout this project) builds
-# a genuine, correctly-typed std::vector<Handle(Geom_Curve)> without incident - the
-# crash is inside interpolate_curves' own real algorithm. Worth reporting upstream
-# to DLR-SC/geoml, not fixed here.
-#
-# So: this recipe stops one step short of the original - it builds and places the
-# three section curves (still exercising interpolate_points_to_b_spline_curve,
-# geoml.Transform's operator(), and geoml.CurveToEdge), and exports them as one
-# compound of three edges rather than a single lofted face. Genuinely running,
-# genuinely demonstrating the real composition this plugin supports - see
-# ../README.md.
+# grocc::BRepTools::Write. This recipe now completes every one of those steps -
+# see DESIGN.md's "interpolate_curves segfault, real root cause found" and its
+# "The real root cause, fixed upstream" follow-up for the full story of the two
+# real sol2/codegen binding bugs (not geoml bugs) that blocked this until
+# 2026-09-29, when they were fixed for real in `grunk`'s own shared codegen
+# (new SOL_BASE_CLASSES/SOL_DERIVED_CLASSES generation) plus this plugin's own
+# codegen/hooks.py (Handle(X) parameters now emitted by value) and
+# src/geoml_sol_traits.hpp (the OCCT Geom_Curve/Geom_Surface hierarchy this
+# plugin references but never itself defines). The face-building step below now
+# uses the *native* occt.BRepBuilderAPI_MakeFace binding directly - the
+# geoml.bspline_surface_to_face(...) escape hatch this recipe used before is
+# gone, no longer needed.
 uses:
   grunk: 0.5.0
   occt: 0.1.0
@@ -41,6 +29,7 @@ parameters:
   camber: 0.4
   span: 6.0
   sweep: 1.5
+  face_tolerance: 1.0e-6
 steps: |
   p1 = occt.gp_Pnt.new(0.0, 0.0, 0.0)
   p2 = occt.gp_Pnt.new(chord * 0.3, camber, 0.0)
@@ -54,31 +43,36 @@ steps: |
   -- std::vector<gp_Pnt> via occt.gp_Pnt.as_vec(...) (the only way to get one at
   -- all - a plain Lua table isn't accepted where a std::vector<T> parameter is
   -- taken by reference, confirmed throughout this project), before interpolating
-  -- each station's own curve.
+  -- each station's own curve. Called as xf(p) (native __call), not xf:apply(p) -
+  -- the grunk-core fix that makes this work inside a real recipe's steps: block
+  -- (DynamicFeature now forwards sol::meta_function::call, see grunk commit
+  -- c0cc16d) has landed; the "apply" workaround method is gone.
   root_xf = geoml.Transform.new(occt.gp_Vec.new(0.0, 0.0, 0.0))
   mid_xf = geoml.Transform.new(occt.gp_Vec.new(sweep * 0.5, 0.0, span * 0.5))
   tip_xf = geoml.Transform.new(occt.gp_Vec.new(sweep, 0.0, span))
 
-  root_pts = occt.gp_Pnt.as_vec(root_xf:apply(p1), root_xf:apply(p2), root_xf:apply(p3), root_xf:apply(p4))
-  mid_pts = occt.gp_Pnt.as_vec(mid_xf:apply(p1), mid_xf:apply(p2), mid_xf:apply(p3), mid_xf:apply(p4))
-  tip_pts = occt.gp_Pnt.as_vec(tip_xf:apply(p1), tip_xf:apply(p2), tip_xf:apply(p3), tip_xf:apply(p4))
+  root_pts = occt.gp_Pnt.as_vec(root_xf(p1), root_xf(p2), root_xf(p3), root_xf(p4))
+  mid_pts = occt.gp_Pnt.as_vec(mid_xf(p1), mid_xf(p2), mid_xf(p3), mid_xf(p4))
+  tip_pts = occt.gp_Pnt.as_vec(tip_xf(p1), tip_xf(p2), tip_xf(p3), tip_xf(p4))
 
   root_curve = geoml.interpolate_points_to_b_spline_curve(root_pts, 3)
   mid_curve = geoml.interpolate_points_to_b_spline_curve(mid_pts, 3)
   tip_curve = geoml.interpolate_points_to_b_spline_curve(tip_pts, 3)
 
-  root_edge = geoml.CurveToEdge(root_curve)
-  mid_edge = geoml.CurveToEdge(mid_curve)
-  tip_edge = geoml.CurveToEdge(tip_curve)
+  -- Native occt.Geom_Curve.as_vec(...) (grunk-occt's own src/geom/geom_extras.hpp)
+  -- builds the std::vector<Handle(Geom_Curve)> geoml.interpolate_curves needs -
+  -- geoml.curve_vec/src/curve_vec_extras.hpp's own hand-rolled escape hatch is
+  -- gone now that grunk's with_std_vector() supports Handle(X) element types
+  -- directly (see DESIGN.md).
+  cv = occt.Geom_Curve.as_vec(root_curve, mid_curve, tip_curve)
+  loft_surface = geoml.interpolate_curves(cv, 3, false)
 
-  sections = occt.TopoDS_Compound.new()
-  builder = occt.BRep_Builder.new()
-  builder:MakeCompound(sections)
-  builder:Add(sections, root_edge)
-  builder:Add(sections, mid_edge)
-  builder:Add(sections, tip_edge)
+  -- Native occt.BRepBuilderAPI_MakeFace call - its own generated Handle(Geom_Surface)
+  -- constructor overload now correctly accepts loft_surface's own concrete
+  -- Handle(Geom_BSplineSurface) type directly (see DESIGN.md).
+  face = occt.BRepBuilderAPI_MakeFace.new(loft_surface, face_tolerance):Face()
 
-  ok = occt.export_brep(sections, "wing_loft.brep")
+  ok = occt.export_brep(face, "wing_loft.brep")
 outputs:
-  sections: sections
+  face: face
   ok: ok

@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_boolean_operations.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/boolean_operations/BOPBuilderShapeToBRepBuilderShapeAdapter.h>
 #include <geoml/internal/boolean_operations/BRepSewingToBRepBuilderShapeAdapter.h>
@@ -127,7 +128,7 @@ void register_internal_boolean_operations(grunk::plugin_namespace& ns)
     ns.register_type<GEOMAlgo_Splitter, sol::automagic_flags::none>("GEOMAlgo_Splitter")
         .add_constructors(
             []() { return std::make_unique<GEOMAlgo_Splitter>(); },
-            [](const opencascade::handle<NCollection_BaseAllocator> & theAllocator) { return std::make_unique<GEOMAlgo_Splitter>(theAllocator); }
+            [](opencascade::handle<NCollection_BaseAllocator> theAllocator) { return std::make_unique<GEOMAlgo_Splitter>(theAllocator); }
         )
         .add_member_function("AddTool", [](GEOMAlgo_Splitter& self, const TopoDS_Shape & theShape) { self.AddTool(theShape); })
         .add_member_function("Tools", [](GEOMAlgo_Splitter const& self) -> const TopTools_ListOfShape & { return self.Tools(); })

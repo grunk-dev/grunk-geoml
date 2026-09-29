@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_imports.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/imports/ICADImporter.h>
 #include <geoml/internal/imports/ICADImporterCreator.h>

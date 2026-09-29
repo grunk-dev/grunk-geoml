@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_system.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/system/TypeRegistry.h>
 

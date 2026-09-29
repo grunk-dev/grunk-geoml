@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_topology.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/topology/BRepBuilderAPI_MakeShape_Operation.hpp>
 #include <geoml/internal/topology/CNamedShape.h>

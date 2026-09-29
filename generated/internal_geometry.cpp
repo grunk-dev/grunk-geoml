@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_geometry.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/geometry/ApproxResult.h>
 #include <geoml/internal/geometry/ArcLengthReparameterization.h>
@@ -93,8 +94,8 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
             []() { return ReparametrizeCurveByArclen(); }
         )
         .add_member_function("init", sol::overload(
-            [](ReparametrizeCurveByArclen& self, const opencascade::handle<Geom_BSplineCurve> curve) { self.init(curve); },
-            [](ReparametrizeCurveByArclen& self, const opencascade::handle<Geom_BSplineCurve> curve, double accuracy) { self.init(curve, accuracy); }
+            [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve) { self.init(curve); },
+            [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve, double accuracy) { self.init(curve, accuracy); }
         ))
         .add_member_function("isInitialized", [](ReparametrizeCurveByArclen const& self) -> bool { return self.isInitialized(); })
         .add_member_function("parameter", [](ReparametrizeCurveByArclen const& self, double arcLength) -> double { return self.parameter(arcLength); })
@@ -184,12 +185,12 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_member_function("distance2", [](Point const& self, const Point & point) -> double { return self.distance2(point); });
     ns.register_type<PointsToBSplineInterpolation, sol::automagic_flags::none>("PointsToBSplineInterpolation")
         .add_constructors(
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points) { return PointsToBSplineInterpolation(points); },
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, maxDegree); },
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points, const std::vector<double> & parameters) { return PointsToBSplineInterpolation(points, parameters); },
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, maxDegree, continuousIfClosed); },
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points, const std::vector<double> & parameters, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, parameters, maxDegree); },
-            [](const opencascade::handle<TColgp_HArray1OfPnt> & points, const std::vector<double> & parameters, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, parameters, maxDegree, continuousIfClosed); }
+            [](opencascade::handle<TColgp_HArray1OfPnt> points) { return PointsToBSplineInterpolation(points); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, maxDegree); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters) { return PointsToBSplineInterpolation(points, parameters); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, maxDegree, continuousIfClosed); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, parameters, maxDegree); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, parameters, maxDegree, continuousIfClosed); }
         )
         .add_member_function("Curve", [](PointsToBSplineInterpolation const& self) -> opencascade::handle<Geom_BSplineCurve> { return self.Curve(); })
         .add_member_function("Parameters", [](PointsToBSplineInterpolation const& self) -> const std::vector<double> & { return self.Parameters(); })
@@ -230,7 +231,7 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
             [](Transformation const& self, const TopoDS_Shape & shape) -> TopoDS_Shape { return self.Transform(shape); },
             [](Transformation const& self, PNamedShape shape) -> PNamedShape { return self.Transform(shape); },
             [](Transformation const& self, const gp_Pnt & point) -> gp_Pnt { return self.Transform(point); },
-            [](Transformation const& self, const opencascade::handle<Geom_Surface> & surf) -> opencascade::handle<Geom_Surface> { return self.Transform(surf); },
+            [](Transformation const& self, opencascade::handle<Geom_Surface> surf) -> opencascade::handle<Geom_Surface> { return self.Transform(surf); },
             [](Transformation const& self, const gp_Vec & vec) -> gp_Vec { return self.Transform(vec); }
         ))
         .add_member_function("Inverted", [](Transformation const& self) -> Transformation { return self.Inverted(); })
@@ -279,10 +280,10 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
     ));
     ns.register_function("BSplineAlgorithms_computeParamsBSplineCurve", sol::overload(
-        [](const opencascade::handle<TColgp_HArray1OfPnt> & points) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points); },
-        [](const opencascade::handle<TColgp_HArray1OfPnt> & points, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, alpha); },
-        [](const opencascade::handle<TColgp_HArray1OfPnt> & points, double umin, double umax) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax); },
-        [](const opencascade::handle<TColgp_HArray1OfPnt> & points, double umin, double umax, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax, alpha); }
+        [](opencascade::handle<TColgp_HArray1OfPnt> points) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points); },
+        [](opencascade::handle<TColgp_HArray1OfPnt> points, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, alpha); },
+        [](opencascade::handle<TColgp_HArray1OfPnt> points, double umin, double umax) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax); },
+        [](opencascade::handle<TColgp_HArray1OfPnt> points, double umin, double umax, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax, alpha); }
     ));
     ns.register_function("BSplineAlgorithms_bsplineBasisMat", sol::overload(
         [](int degree, std::vector<double> const& flatKnots, std::vector<double> const& params) -> math_Matrix { return BSplineAlgorithms::bsplineBasisMat(degree, geoml_plugin::to_real_array1(flatKnots), geoml_plugin::to_real_array1(params)); },
@@ -301,19 +302,19 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         [](Geom_BSplineSurface & spline, double umin, double umax, double vmin, double vmax, double tol) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax, vmin, vmax, tol); }
     ));
     ns.register_function("BSplineAlgorithms_reparametrizeBSplineNiceKnots", [](opencascade::handle<Geom_BSplineCurve> spline) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineNiceKnots(spline); });
-    ns.register_function("BSplineAlgorithms_reparametrizeBSplineContinuouslyApprox", [](const opencascade::handle<Geom_BSplineCurve> spline, const std::vector<double> & old_parameters, const std::vector<double> & new_parameters, size_t n_control_pnts) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineContinuouslyApprox(spline, old_parameters, new_parameters, n_control_pnts); });
-    ns.register_function("BSplineAlgorithms_flipSurface", [](const opencascade::handle<Geom_BSplineSurface> surface) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::flipSurface(surface); });
+    ns.register_function("BSplineAlgorithms_reparametrizeBSplineContinuouslyApprox", [](opencascade::handle<Geom_BSplineCurve> spline, const std::vector<double> & old_parameters, const std::vector<double> & new_parameters, size_t n_control_pnts) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineContinuouslyApprox(spline, old_parameters, new_parameters, n_control_pnts); });
+    ns.register_function("BSplineAlgorithms_flipSurface", [](opencascade::handle<Geom_BSplineSurface> surface) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::flipSurface(surface); });
     ns.register_function("BSplineAlgorithms_pointsToSurface", [](const TColgp_Array2OfPnt & points, const std::vector<double> & uParams, const std::vector<double> & vParams, bool uContinuousIfClosed, bool vContinuousIfClosed) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::pointsToSurface(points, uParams, vParams, uContinuousIfClosed, vContinuousIfClosed); });
     ns.register_function("BSplineAlgorithms_scale", sol::overload(
         [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector) -> double { return BSplineAlgorithms::scale(splines_vector); },
-        [](const opencascade::handle<Geom_BSplineCurve> & spline) -> double { return BSplineAlgorithms::scale(spline); },
+        [](opencascade::handle<Geom_BSplineCurve> spline) -> double { return BSplineAlgorithms::scale(spline); },
         [](const TColgp_Array2OfPnt & points) -> double { return BSplineAlgorithms::scale(points); },
         [](const TColgp_Array1OfPnt & points) -> double { return BSplineAlgorithms::scale(points); }
     ));
     ns.register_function("BSplineAlgorithms_isUDirClosed", [](const TColgp_Array2OfPnt & points, double tolerance) -> bool { return BSplineAlgorithms::isUDirClosed(points, tolerance); });
     ns.register_function("BSplineAlgorithms_isVDirClosed", [](const TColgp_Array2OfPnt & points, double tolerance) -> bool { return BSplineAlgorithms::isVDirClosed(points, tolerance); });
-    ns.register_function("BSplineAlgorithms_trimSurface", [](const opencascade::handle<Geom_Surface> & surface, double umin, double umax, double vmin, double vmax) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::trimSurface(surface, umin, umax, vmin, vmax); });
-    ns.register_function("BSplineAlgorithms_trimCurve", [](const opencascade::handle<Geom_BSplineCurve> & curve, double umin, double umax) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::trimCurve(curve, umin, umax); });
+    ns.register_function("BSplineAlgorithms_trimSurface", [](opencascade::handle<Geom_Surface> surface, double umin, double umax, double vmin, double vmax) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::trimSurface(surface, umin, umax, vmin, vmax); });
+    ns.register_function("BSplineAlgorithms_trimCurve", [](opencascade::handle<Geom_BSplineCurve> curve, double umin, double umax) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::trimCurve(curve, umin, umax); });
     ns.register_function("BSplineAlgorithms_concatCurves", sol::overload(
         [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves); },
         [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves, bool parByLength) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves, parByLength); },

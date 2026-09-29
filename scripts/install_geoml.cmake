@@ -84,6 +84,18 @@ run_or_die(COMMAND git checkout "${GEOML_REV}" WORKING_DIRECTORY "${GEOML_CHECKO
 # option this script passes. Worth reporting upstream to DLR-SC/geoml directly
 # (these are real, narrow OCCT-7.9-compatibility bugs, not this plugin's own
 # workarounds) - not yet done, see DESIGN.md.
+#
+# Two further, unrelated fixes added 2026-09-29 (also unconditional, same
+# reasoning): src/common/sorting.h uses std::invalid_argument without
+# #include <stdexcept>, and src/geometry/IntersectionPoint.h declares a
+# gp_Pnt-holding struct without #include <gp_Pnt.hxx> - neither is an
+# OCCT-7.9 issue (both are missing includes geoml's own real, full build
+# never notices, since something else transitively pulls them in first) but
+# both are genuine geoml source bugs, found because `grunk codegen`'s own
+# libclang-based parser parses each header strictly in isolation and has no
+# such transitive luck. Found while regenerating this plugin's own bindings
+# for real for the first time with GRUNK_GEOML_GENERATE_CODE=ON - see
+# DESIGN.md. Also worth reporting upstream to DLR-SC/geoml directly.
 # --reverse --check is a read-only probe (see git-apply(1)) - true if the patch is
 # already applied, letting this script stay idempotent against an already-patched
 # checkout the same way the whole script is against an already-installed prefix.

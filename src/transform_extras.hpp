@@ -73,36 +73,22 @@ inline void register_transform_extras(grunk::plugin_namespace& ns)
             [](const geoml::Transform& other) { return geoml::Transform(other); }
         )
         // operator() overload set - see this file's own top comment for why the
-        // generator can't reach this. Registered twice, under two different keys,
-        // for two different calling contexts:
-        //
-        // - sol::meta_function::call: a Transform instance called directly, exactly
-        //   like in C++ - `local moved_pnt = xf(pt)`. Works fine in a plain
-        //   grunk::state::create_env() environment (confirmed live), but NOT inside
-        //   a real recipe's steps: block (state::read(), grunk::recipe) - found the
-        //   hard way porting examples/wing_loft.grr.yml: "attempt to call a
-        //   sol.grunk::Feature<...> value". grunk's own decorated/parametric
-        //   environment (create_decorated_environment, wrapping every value in a
-        //   Feature<object> for dependency tracking) intercepts named function/
-        //   method calls to build Action nodes, but does not forward Lua's __call
-        //   metamethod on an arbitrary userdata through that wrapping at all - a
-        //   real, generic grunk-core/dynamic-layer gap, not something fixable from
-        //   this plugin's own registration code. Kept anyway - genuinely useful
-        //   for a plain (non-recipe) script or a C++ test harness like this
-        //   plugin's own tests/test_transformations.cpp.
-        // - a plain "apply" member function, identical overload set, callable via
-        //   ordinary colon syntax (`local moved_pnt = xf:apply(pt)`) - a normal
-        //   method call, which *does* work inside a recipe's decorated environment
-        //   (every other example throughout this whole project already relies on
-        //   plain method calls working there). This is what examples/wing_loft.grr.yml
-        //   and examples/load_carrier.grr.yml actually use.
+        // generator can't reach this. A Transform instance is called directly,
+        // exactly like in C++ - `local moved_pnt = xf(pt)`. This used to need a
+        // second, duplicate "apply" member function as a colon-call workaround
+        // (`xf:apply(pt)`), since grunk's own decorated/parametric recipe
+        // environment (create_decorated_environment, wrapping every value in a
+        // Feature<object> for dependency tracking) never forwarded Lua's __call
+        // metamethod on an arbitrary userdata through that wrapping - a real,
+        // generic grunk-core/dynamic-layer gap, fixed upstream in grunk itself
+        // (DynamicFeature now registers sol::meta_function::call generically, the
+        // same make_dynamic_action pattern already used for +/-/*// etc. - see
+        // grunk commit c0cc16d, and this repo's own DESIGN.md "Real recipe-API bug"
+        // entries). Confirmed live against the current grunk pin: `xf(pt)` now
+        // works correctly inside a real recipe's steps: block, not just a plain
+        // script - see examples/wing_loft.grr.yml/load_carrier.grr.yml, both
+        // updated to call xf(...) directly instead of xf:apply(...).
         .add_member_function(sol::meta_function::call, sol::overload(
-            [](geoml::Transform const& self, const TopoDS_Shape& shape) -> TopoDS_Shape { return self(shape); },
-            [](geoml::Transform const& self, const gp_Pnt& point) -> gp_Pnt { return self(point); },
-            [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); },
-            [](geoml::Transform const& self, const gp_Vec& vec) -> gp_Vec { return self(vec); }
-        ))
-        .add_member_function("apply", sol::overload(
             [](geoml::Transform const& self, const TopoDS_Shape& shape) -> TopoDS_Shape { return self(shape); },
             [](geoml::Transform const& self, const gp_Pnt& point) -> gp_Pnt { return self(point); },
             [](geoml::Transform const& self, const opencascade::handle<Geom_Surface>& surf) -> opencascade::handle<Geom_Surface> { return self(surf); },

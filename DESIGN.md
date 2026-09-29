@@ -314,7 +314,318 @@ reporting upstream to `grunk` itself at some point - out of scope to fix here (w
 mean changing `grunk::dynamic`'s own `ActionDynamic`/decorated-environment wrapping,
 not this plugin).
 
-**A real, unresolved geoml bug found porting `wing_loft`**: `geoml.interpolate_curves`
+**FIXED upstream in `grunk` itself, pin bumped, workaround removed (2026-09-28).**
+Root-caused precisely (not just worked around): `DynamicFeature`'s own usertype
+(`grunk/dynamic/state.hpp`) already forwards `+`/`-`/`*`/`/`/`%`/`^`/unary-minus
+to the wrapped raw value via a generic `make_dynamic_action` pattern (a small
+Lua closure doing the raw operation, wrapped so the call becomes a properly
+dependency-tracked parametric Action), but never registered
+`sol::meta_function::call` at all - so a Feature-wrapped callable had no `__call`
+metamethod to dispatch to, genuinely and simply missing, not some deeper
+decorated-environment design limitation. Fixed with the exact same pattern
+already used for the arithmetic operators: `grunk.__dynamic_call(self, ...)`
+(`return self(...)`) wrapped via `make_dynamic_action` and registered as
+`Feature`'s own `sol::meta_function::call`. Fully generic - works for *any*
+Feature-wrapped type with its own bound `operator()`, not just `Transform`.
+Verified two ways before landing: a new permanent grunk test
+(`operators.usertype_call_lua`, `tests/cpp/dynamic_operators.cpp`) confirms both
+that the call itself succeeds and that the result is genuinely
+dependency-tracked (changing the callee's state re-derives the result, not a
+one-shot eager call); a live spike against the real `geoml.Transform` through
+`state.read()` (the actual decorated recipe environment, not just `env.eval()`)
+confirmed `xf(p)` now works exactly like `xf:apply(p)` used to. Landed as grunk
+commit `c0cc16d83437811b0868ea78a04dbeafeaa0f57e`. `scripts/install_grunk.cmake`/
+`pixi.toml`'s `GRUNK_REV` bumped to it (past the `b836a656f97765f0b48f7a527cf977454a830873`
+pin from the "grunk pin bumped" entry above), `pixi.lock` regenerated
+(`pixi lock`), `.deps/grunk` reinstalled and the whole project rebuilt clean
+(22/22 C++ tests pass) against the new pin. `src/transform_extras.hpp`'s own
+`apply` method (the ductape workaround) removed - `sol::meta_function::call` is
+now the only registration, and `examples/wing_loft.grr.yml` (the one example
+that actually calls `Transform::operator()`) updated to call `xf(p)` directly;
+re-verified end-to-end via the real recipe (`ok=1`, real `.brep` export).
+
+**`interpolate_curves` segfault - REVISED, real root cause found and confirmed
+(2026-09-28), correcting the entry below verbatim below it (kept for history -
+its "ruled out as a binding problem" conclusion was wrong).** This is a
+`grunk-geoml` binding bug, not a geoml algorithm bug - nothing here needs to be
+fixed in DLR-SC/geoml itself.
+
+Forensic method: a pure C++ program (no Lua/grunk at all) built against a real
+`-O0 -g` debug build of the exact same pinned geoml commit (patched with
+`scripts/geoml-occt79-compat.patch`), calling `geoml::interpolate_curves` directly
+with the exact three section curves `wing_loft.grr.yml` builds (three 4-point
+"airfoil-ish" stations, each through `interpolate_points_to_b_spline_curve`) -
+**this does not crash and returns a valid, non-null surface.** The same curves,
+built the same way but through the real Lua/grunk plugin path (`geoml.curve_vec(...)`
+then `geoml.interpolate_curves(...)`, exactly as `wing_loft.grr.yml` calls them),
+**does crash**, every time. This alone falsifies the "geoml's own algorithm"
+theory - the crash is specific to something that happens only when the curves
+cross the Lua binding boundary.
+
+`gdb` on the crashing Lua path (plugin `.so` built unstripped, so real symbols)
+gives a precise, unambiguous backtrace: the actual fault is a null-pointer
+dereference (`rdi=0x0`, i.e. `this=nullptr`) inside `Standard_Transient::IsKind()`,
+called from `GeomConvert::CurveToBSplineCurve(Handle(Geom_Curve) const&, ...)`,
+called from `geoml::CurvesToSurface::CurvesToSurface(std::vector<Handle(Geom_Curve)>
+const&, bool)`, called from `geoml::interpolate_curves`. I.e.: `interpolate_curves`
+is being handed at least one **null** `Handle(Geom_Curve)` inside its input vector,
+and crashes exactly the way any code would when told a curve exists but its handle
+is actually empty - `interpolate_curves`'s own algorithm is not at fault, it's
+being lied to by its caller.
+
+Traced the null handle to its exact source: `geoml.curve_vec(...)`
+(`src/curve_vec_extras.hpp`) builds its `std::vector<Handle(Geom_Curve)>` by calling
+`a.get<opencascade::handle<Geom_Curve>>()` on each `sol::variadic_args` element `a`
+at runtime. **Confirmed directly (temporary diagnostic prints, since reverted -
+see `src/curve_vec_extras.hpp`'s own comment) that this call silently returns a
+NULL handle whenever `a`'s actual registered type is a *derived* `Geom_Curve`
+subtype (`Geom_BSplineCurve`, the only kind `interpolate_points_to_b_spline_curve`
+ever actually produces - `Geom_Curve` itself is abstract, so a literal
+`Handle(Geom_Curve)` value can never occur in practice) - no exception, no error,
+just a quietly wrong result.** Also confirmed, as a direct A/B comparison: the
+exact same value, passed as a real, statically-typed
+`opencascade::handle<Geom_Curve> const&` **function parameter** (not extracted at
+runtime via `.get<T>()`/`sol::stack::get<T>()` from a generic `sol::object`), does
+correctly perform the `Handle(Geom_BSplineCurve)` -> `Handle(Geom_Curve)` upcast
+(non-null, correct pointer) - i.e. sol2's ordinary, statically-bound
+function-argument conversion path handles this derived-to-base `Handle(X)` case
+correctly; the generic, runtime `sol::object::get<T>()`/`sol::stack::get<T>()`
+path used inside a `sol::variadic_args` loop does not. This directly contradicts
+this entry's own prior claim ("a single `Handle(Geom_BSplineCurve)`-for-
+`Handle(Geom_Curve)` argument already works fine, confirmed via `geoml.CurveToEdge`")
+- that claim is true only because `CurveToEdge` receives its argument as a real
+typed function parameter, not through `curve_vec`'s own runtime-extraction path;
+the two are not the same mechanism, and the difference matters.
+
+**FIXED and verified end-to-end (2026-09-28), after several dead ends worth
+recording.** Chasing "the right fix direction" from the paragraph above (route
+every `curve_vec` argument through a genuine sol2 function call) turned out to
+be a red herring in its specific formulation. What was actually tried, in
+order, each confirmed insufficient by direct rebuild-and-rerun before moving to
+the next:
+
+1. `sol::stack::get<T>()` instead of `sol::object::get<T>()` - same result, still
+   null.
+2. A `sol::overload` set of fixed-arity functions (`curve_vec_arity_1..12`, each
+   with N real `Handle(Geom_Curve)` parameters) - failed differently: sol2's own
+   *overload-resolution type-checking* rejected every call ("no matching function
+   call"), meaning the derived-to-base mismatch breaks the overload-candidate
+   check too, not just extraction.
+3. A non-overloaded `curve_vec_arity_N` (still N `Handle(Geom_Curve)` parameters,
+   no `sol::overload` involved) - compiled and matched, but *segfaulted inside
+   sol2 itself* (`sol::stack::qualified_getter<opencascade::handle<Geom_Curve>,
+   void>::get`), called while binding the 2nd/3rd argument. Real crash, not just
+   wrong data - `qualified_getter` (sol2's path for a signature with more than
+   one parameter) is broken for this case in a different, worse way than the
+   single-parameter getters above.
+4. A pure-Lua dispatcher (`curve_vec_begin()`/`curve_vec_add(one curve)`/
+   `curve_vec_end()`, each a genuine single-parameter C++ function, invoked from
+   a small Lua closure built once via `lua.script(...)`) - still null, even
+   though every individual function had exactly one parameter. This falsified
+   the "must be single-parameter" theory from the paragraph above: a direct,
+   single-argument call to `diag_curve_is_null(mid_curve)` typed as literal Lua
+   source in the *recipe's own script chunk* returned a correct, non-null
+   result on the very same curve value that `curve_vec_add` (same signature)
+   returned null for when called from a *separately pre-compiled* Lua chunk
+   (this file's own dispatcher closure, built via a different `lua.script(...)`
+   call at plugin-registration time). Never fully root-caused why - deep sol2
+   internals, not practical to chase further given the fix below sidesteps it
+   entirely.
+
+**The actual fix**: stop asking sol2 to produce a `Handle(Geom_Curve)` (the
+*abstract* base) from anything, ever - request the *exact* concrete type
+instead (`Handle(Geom_BSplineCurve)`, confirmed by inspection to be the only
+concrete `Geom_Curve` subtype geoml's own public curve API ever returns), which
+needs no sol2-side upcast at all, and perform the base-class widening in plain
+C++ afterward. This is where the true, deeper mechanism finally surfaced (see
+`opencascade::handle<T>`'s own `Standard_Handle.hxx`): this OCCT build (no
+`OCCT_HANDLE_NOCAST`) only defines the derived-to-base upcast as an **implicit
+reference-conversion operator** (`operator const handle<Base>&() const`), not a
+value-constructing converting constructor - so `Handle(Geom_Surface) x = derived;`
+(materializing a *new* base-typed object) doesn't even compile in plain C++,
+while passing `derived` directly to something taking `const Handle(Base)&`
+works fine (binds via the operator, then an ordinary same-type copy happens
+downstream, e.g. inside `std::vector::push_back`). Every sol2 failure mode
+above is a variant of sol2 trying to *materialize* a new `Handle(Geom_Curve)`
+value somewhere in its own generic machinery (a getter's return value, an
+overload candidate, a multi-parameter binder) - which was never going to work
+in this OCCT build regardless of which sol2 code path was used, hence the long
+string of "different failure, same root shape" results above. `curve_vec`'s
+final, working form: `sol::variadic_args`, each element extracted via
+`a.as<opencascade::handle<Geom_BSplineCurve>>()` (exact type, no upcast at the
+sol2 boundary), then `v.push_back(bspline)` into a
+`std::vector<opencascade::handle<Geom_Curve>>` (plain C++ reference-binding
+push, not a value conversion) - see `src/curve_vec_extras.hpp`'s own header
+comment for the full writeup kept alongside the code.
+
+**Same fix, same root cause, found again one step later**: getting from the
+resulting `Handle(Geom_BSplineSurface)` to a `TopoDS_Face` needs
+`BRepBuilderAPI_MakeFace`, whose generated constructor overload set
+(grunk-occt's own `generated/brepbuilderapi.cpp`) only takes the abstract
+`Handle(Geom_Surface)` - calling it with a `Handle(Geom_BSplineSurface)` hit the
+exact same "no matching function call" overload-resolution failure as attempt
+(2) above, for the identical reason. Not fixable in grunk-geoml's own
+`wing_loft.grr.yml` (the overload set lives in grunk-occt, a different repo,
+out of scope to change here) - worked around the same way, locally: a new
+`src/surface_face_extras.hpp`/`geoml.bspline_surface_to_face(surf, tolerance)`
+takes `Handle(Geom_BSplineSurface)` directly and passes it straight through to
+`BRepBuilderAPI_MakeFace(surf, tolerance)` (reference-binding, no
+materialization - the exact same discipline as `curve_vec`'s own fix).
+
+**Verified fully end-to-end**, both via a standalone spike and via the real
+`wing_loft.grr.yml` recipe run through `state.read()` (the actual decorated/
+recipe environment, not just `env.eval()`): `geoml.interpolate_curves` returns
+a genuinely valid, non-null `Handle(Geom_BSplineSurface)` (`NbUPoles=4
+NbVPoles=3`, matching the 4 control points x 3 section curves), and
+`geoml.bspline_surface_to_face` turns it into a real `TopoDS_Face` that exports
+to a valid, non-trivial `.brep` file. `wing_loft.grr.yml` now completes every
+step of the original legacy recipe (interpolate -> transform x3 -> loft ->
+face -> export), not just the first three.
+
+## The real root cause, fixed upstream and fully landed (2026-09-28/29)
+
+The two workarounds above are exactly that - workarounds. The user (also
+`grunk-occt`'s own maintainer) asked to fix the underlying bug in `grunk-occt`
+directly instead of re-deriving a local escape hatch every time it bites a
+different function. That investigation found the real, precise, three-part
+mechanism (sol2's own `unique_usertype_traits::rebind_actual_type` being
+required at all for base-class-aware conversion to even attempt; the
+compile-time-only `SOL_BASE_CLASSES`/`SOL_DERIVED_CLASSES` macro pair being a
+*separate* mechanism from the runtime `.add_bases<...>()` call this generator
+already emits; and sol2's own base-aware code path unconditionally excluding
+*reference* parameters, so every `Handle(X) const&` parameter this generator
+ever emits needs to become a plain by-value `opencascade::handle<X>` instead) -
+see `../grunk-occt/DESIGN.md`'s own "`Handle(Derived)`->`Handle(Base)` argument
+conversion: real root cause and fix" for the full writeup, verified there via
+a real `grunk codegen` regeneration + full rebuild + all 50 of that repo's own
+tests.
+
+This plugin's own `src/geoml_sol_traits.hpp` (the `rebind_actual_type` fix) and
+`codegen/hooks.py` (the by-value `emit_param()` override) carry the identical
+fixes, verified working here too via the same kind of live spike (a hand-built
+`sol_base_classes.hpp` + manually by-value-patched `generated/curves.cpp`/
+`generated/surfaces.cpp`, confirming `geoml.interpolate_curves`'s own real
+`Handle(Geom_Curve)` parameter and `occt.BRepBuilderAPI_MakeFace`'s
+`Handle(Geom_Surface)` parameter both correctly accept a
+`Handle(Geom_BSplineCurve)`/`Handle(Geom_BSplineSurface)` argument with *zero*
+plugin-level escape hatches, end to end).
+
+**Regenerated for real (2026-09-29), after two more real gaps found and fixed.**
+The initial `pixi run generate_code` attempt against this plugin's own real
+`config.yml`/geoml headers hit a short chain of missing `#include`s inside
+geoml's own internal headers - `geoml/internal/common/sorting.h` uses
+`std::invalid_argument` without including `<stdexcept>`, and
+`geoml/internal/geometry/IntersectionPoint.h` declares a `gp_Pnt`-holding
+struct without including `<gp_Pnt.hxx>`. Both are genuinely **unrelated to this
+whole Handle(X) investigation** - real, pre-existing geoml source-hygiene bugs
+(a full build transitively pulls the missing standard/OCCT headers in via some
+other path and never notices; only libclang's own strict, isolated per-header
+parsing exposes them) - now patched in `scripts/geoml-occt79-compat.patch`
+(the same, existing OCCT-7.9-compat patch this plugin already applies to its
+own pinned geoml checkout) and `scripts/install_geoml.cmake`'s own comment
+updated accordingly. Still worth reporting upstream to DLR-SC/geoml directly.
+
+**A second, real gap found only once regeneration actually ran**: the newly
+regenerated `generated/sol_base_classes.hpp` came back with *zero*
+`Geom_Curve`/`Geom_Surface`-family entries at all, so the original failure
+(`BRepBuilderAPI_MakeFace`'s `Handle(Geom_Surface)` parameter still rejecting a
+`Handle(Geom_BSplineSurface)` argument) persisted even after a clean
+regeneration. Root cause: `grunk.codegen`'s new `sol_base_classes.hpp`
+generation (see `../grunk-occt/DESIGN.md`) only ever covers classes *this run's
+own* codegen discovers - i.e. classes actually *defined* somewhere under this
+plugin's own `--include-dir`. `Geom_Curve`/`Geom_Surface` and their concrete
+subtypes are OCCT types this plugin only ever *references* (as return types of
+`interpolate_points_to_b_spline_curve`/`interpolate_curves`/etc.) - they're
+defined entirely under `grunk-occt`'s own, completely separate
+`--include-dir`/codegen run, which this plugin's own run never sees (and vice
+versa - `grunk-occt`'s own generated `sol_base_classes.hpp` has no way to reach
+this plugin's own, separately-compiled `.so` either). Per this plugin's own
+"Handle(X) cross-plugin sharing" finding above, that's normally fine (sol2's
+ordinary Handle(X) push/pull needs no shared registration at all) - but
+`SOL_BASE_CLASSES`/`SOL_DERIVED_CLASSES` are explicit, compile-time-only
+template specializations that must be visible in *this* plugin's own
+translation units specifically. Fixed by hand-adding the four macro
+invocations this plugin actually needs directly to `src/geoml_sol_traits.hpp`
+(already included by every generated module via this project's own custom
+banner) - safe for the same reason `unique_usertype_traits` above already is:
+a self-contained template specialization, this plugin's own copy only ever
+instantiated within its own translation units, no ODR conflict with
+`grunk-occt`'s own separately-compiled copy of the same declarations.
+
+**Verified fully working end to end** after both fixes: `occt.
+BRepBuilderAPI_MakeFace.new(surf, tol)` now accepts a real
+`Handle(Geom_BSplineSurface)` natively, with *zero* plugin-level escape
+hatches - `src/surface_face_extras.hpp`/`geoml.bspline_surface_to_face(...)`
+removed entirely, `examples/wing_loft.grr.yml` updated to call
+`occt.BRepBuilderAPI_MakeFace.new(loft_surface, face_tolerance):Face()`
+directly. Re-ran the real recipe path for both examples: `load_carrier.grr.yml`
+(`ok=1 n_faces=23`) and `wing_loft.grr.yml` (`ok=1`), plus the full existing
+22/22 `runUnitTests` and 18/18 `test_hooks.py` - all green.
+
+**`curve_vec_extras.hpp` stayed for a while, unchanged, deliberately** - it
+solved a different, unrelated problem (building a `std::vector<Handle(Geom_Curve)>`
+from individual Lua arguments at all, since sol2 has no plain-table-to-vector
+conversion for a by-reference parameter) that this fix did not touch;
+`interpolate_curves`'s own `std::vector<Handle(Geom_Curve)>` parameter is a
+container of handles, not a bare `Handle(X)`, so the by-value `emit_param()`
+fix (which only ever applies to a bare `"handle"`-kind parameter) never
+reached it. Removed for real once `with_std_vector()` itself gained
+`Handle(X)` support - see "`curve_vec_extras.hpp` removed" below.
+
+## `curve_vec_extras.hpp` removed - `grunk`'s `with_std_vector()` gains `Handle(X)` support (2026-09-29)
+
+A background investigation (prompted by "the `curve_vec_extras.hpp` ductape
+could maybe be a generic grunk/sol2 feature instead") found grunk's own
+`with_std_vector<VecElement>()` (`grunk/dynamic/usertype_proxy.hpp`, already
+used by `grunk-occt`'s `occt.gp_Pnt.as_vec(...)`) was *already designed* for
+exactly this - the `VecElement` template parameter exists specifically so a
+usertype's own `.as_vec(...)` can build `std::vector<Handle<T>>` instead of
+`std::vector<T>`, accepting any registered subtype via sol2's inheritance
+machinery. It had never actually worked for a unique-usertype element type,
+though (an earlier attempt to use it this way had been abandoned with an
+unexplained "unrecognized userdata" error). Root-caused to two bugs, both
+fixed in `grunk` (commit `13ab6232fdcd7b7e20a916392cfbb607417fb143`,
+merged/pushed by the user):
+
+1. `with_std_vector`'s internal `cast_to_element` took `VecElement const&` - a
+   *reference* - which sol2's own base-aware unique-usertype
+   checker/getter excludes outright (`!std::is_reference_v<X>`), the identical
+   constraint this project's own `emit_param()` fix above already had to work
+   around for plain `Handle(X)` function parameters. Fixed to take
+   `VecElement` by value.
+2. Whichever translation unit instantiates `with_std_vector<Handle<T>>()`
+   needs `T`'s own `SOL_BASE_CLASSES`/`SOL_DERIVED_CLASSES` visible via
+   `#include` at that point, same as every other Handle(X) push/pull in this
+   whole investigation - an unspecialized primary template silently means "no
+   known bases" with no compile error, independent of what `add_bases<...>()`
+   registers at runtime.
+
+This plugin's own `GRUNK_REV` pin bumped to the same commit. `grunk-occt`
+opted `Geom_Curve` into it directly
+(`ns.modify_type<Geom_Curve>("Geom_Curve").with_std_vector<opencascade::handle<Geom_Curve>>()`,
+`grunk-occt/src/geom/geom_extras.hpp`) - giving `occt.Geom_Curve.as_vec(...)`,
+a real `std::vector<Handle(Geom_Curve)>` from individual `Handle(Geom_*Curve)`
+Lua arguments, built entirely inside `occt_plugin.so`'s own translation unit
+(the one that already has the right `SOL_BASE_CLASSES` visible).
+
+**`src/curve_vec_extras.hpp`/`geoml.curve_vec` removed entirely** - no longer
+needed now that the native `occt.Geom_Curve.as_vec(...)` does the same job
+without this plugin's own exact-type-only limitation (the old workaround only
+ever accepted a `Handle(Geom_BSplineCurve)` argument specifically; the native
+`as_vec` accepts any registered `Geom_Curve` subtype). `examples/wing_loft.grr.yml`
+updated to call `occt.Geom_Curve.as_vec(root_curve, mid_curve, tip_curve)`
+instead of `geoml.curve_vec(...)`.
+
+Verified end to end: `occt.Geom_Curve.as_vec(...)` feeding
+`geoml.interpolate_curves` confirmed working via a real two-plugin spike before
+touching any real files, then `wing_loft.grr.yml` re-run for real (`ok=1`)
+after the change, plus the full 22/22 `runUnitTests` still green with the new
+pin and the escape hatch gone.
+
+---
+
+**ORIGINAL (WRONG) DIAGNOSIS, kept for history only - see the corrected entry
+above.** A real, unresolved geoml bug found porting `wing_loft`: `geoml.interpolate_curves`
 (the modern equivalent of legacy's `geo::interpolate_curves`, needed for the actual
 loft-to-surface step) segfaults for every input tried (2 and 3 simple, valid,
 non-degenerate section curves, built two different ways) - reproduced in a
@@ -333,7 +644,64 @@ scope for this step - would mean debugging/patching geoml's own C++ internals) -
 `wing_loft.grr.yml` exports a compound of the three section edges instead of a
 lofted face, and worth reporting upstream to DLR-SC/geoml.
 
-## `airplane_seats`/`gasturbine_cavity_update` ported - two real recipe-API findings
+## Real recipe-API bug: repeated mutating calls on one object are unreliable in bare `steps:`
+
+Found while re-verifying `load_carrier.grr.yml`/`wing_loft.grr.yml` against their
+real original sources (both examples build a `TopoDS_Compound`/`TopoDS_Shell`/
+`BRepFilletAPI_MakeFillet` via several sequential `builder:Add(...)`/`fillet:Add(...)`
+calls on the *same* object). Confirmed directly, via bisection against grunk's real
+decorated/parametric recipe environment (`state.read(...)`, not `env.eval(...)`):
+several separate `steps:` lines that each mutate the same already-constructed
+object are unreliable - depending on the exact call, this either crashes with a
+raw, unhelpful `"caught (...) exception"` (`BRepFilletAPI_MakeFillet::Add` called 4
+times) or silently *succeeds* while dropping all but one of the calls (`BRep_Builder::Add`
+building a 4-sphere compound came back with 0 faces instead of 4 - no error at
+all). Neither happens in a plain, non-decorated `env.eval()`/`create_env()`
+environment - every stage there works fine in isolation; the bug is specific to the
+recipe/parametric tracking layer's handling of non-const mutation across separate
+`steps:` lines.
+
+**The fix**: grunk's own `modules:` top-level YAML key (`docs/usage.rst`, "Modules
+in Recipes"; `Recipe::insert_module_script`) wraps a whole Lua function as one
+atomic, non-parametric, eagerly-executed compute node - "non-const setters can be
+used inside a module function exactly as described above," unlike bare `steps:`
+lines (individually tracked/lazily evaluated). Verified directly: the exact same
+4-sphere-compound sequence, moved into a `modules:` function and called as one
+expression from `steps:`, correctly returns 4 faces. Applied this pattern to every
+stateful builder sequence in `load_carrier.grr.yml` (sphere compound, fillet, open
+shell) and `wing_loft.grr.yml` (3-edge compound) - both re-verified end-to-end via
+the real `state.read()` path after the fix: `load_carrier` -> `ok=1 n_faces=23`
+(a 54KB non-trivial BREP export); `wing_loft` -> `ok=1 n_edges=3`. Neither crashes
+nor silently loses data now.
+
+**Any future example (or anyone else's recipe) that builds up an OCCT container
+object - `TopoDS_Compound`/`TopoDS_Shell`/`BRepFilletAPI_MakeFillet`/similar - via
+more than one mutating call must use a `modules:` function for that sequence, never
+bare sequential `steps:` lines.** This is a real grunk-core (dynamic/recipe layer)
+robustness gap, not a `grunk-geoml`-specific issue - worth reporting upstream to
+`grunk` itself (root cause not yet investigated: plausibly the same general area as
+the `Transform::__call`-inside-recipes gap noted elsewhere in this document, both
+being ways the decorated/parametric environment's dependency tracking doesn't fully
+support in-place mutation of a single object across steps, though not confirmed to
+share a single root cause).
+
+## `airplane_seats`/`gasturbine_cavity_update` - STALE, DO NOT TRUST (2026-09-28)
+
+**The section immediately below describes a version of these two examples that the
+user explicitly rejected as fabricated** ("Dude, the examples are completely
+wrong! You entirely made up the contents.") - they were replaced with unrelated
+`geoml.create_box` boolean-operation demos instead of a faithful port of the real
+original recipes. The real original `seat_model.grr.yml` (249 lines, nested
+`armrest`/`support`/`seat`/`seat_cushion`/`backrest` sub-recipes) and
+`20241017.grr.yml` (140 lines, `cavity_sketch`/`cylinder` sub-recipes) have already
+been extracted from PR189's own diff and are available to work from. Both files on
+disk (`examples/airplane_seats.grr.yml`, `examples/gasturbine_cavity_update.grr.yml`)
+still contain the rejected fabricated content as of this note and need a full,
+faithful, operation-by-operation rewrite - not done yet. The two real recipe-API
+findings documented just below (the `grunk.expression`-doesn't-exist-anymore
+finding, and the `recipes.<name>():get(...)` subrecipe-call syntax finding) are
+still genuinely true and worth keeping once the rewrite happens - only the
+geometry itself needs to be redone.
 
 Both examples (`examples/airplane_seats.grr.yml`, `examples/gasturbine_cavity_update.grr.yml`,
 both run via the shared `run_example.py`) run cleanly with real, verified output.

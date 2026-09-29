@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "predicates.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/predicates/predicate_functions.h>
 

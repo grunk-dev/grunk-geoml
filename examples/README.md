@@ -13,21 +13,30 @@ the whole point of `grunk-geoml` existing alongside `grunk-occt` (`Handle(X)` va
 
 ## Contents
 
-- `load_carrier.grr.yml` - a box with two cylindrical through-holes, built via
-  `geoml.create_box`/`geoml.create_cylinder`, positioned with `geoml.Transform`, and
-  combined with `geoml.boolean_subtract`. Ported from an old draft PR
-  (`grunk-dev/grunk#189`), simplified - the original also filleted edges, shelled
-  the result, and removed two faces, none of which this plugin's own coverage
-  supports yet (see `../DESIGN.md`'s "Known generator gaps blacklisted for now").
+- `load_carrier.grr.yml` - an open-ended rounded rectangular tube (rectangle ->
+  extrude -> fillet the 4 long edges -> cut 4 small corner-dimple spheres -> hollow
+  into an open shell), positioned with `geoml.translate` (not `geoml.Transform` -
+  this recipe never needs the latter). Ported from an old draft PR
+  (`grunk-dev/grunk#189`, `examples/load_carrier/load_carrier.grr`), a faithful,
+  operation-by-operation port - see the recipe's own top comment for the real
+  edge/face indices this build's own OCCT topology numbering needed, re-derived
+  rather than copied from the legacy recipe's own (non-portable) index values.
 - `wing_loft.grr.yml` - three airfoil-ish section curves (built with
   `geoml.interpolate_points_to_b_spline_curve`), placed span-wise with
-  `geoml.Transform`, exported as a compound of edges. Ported from
-  `legacy-geo/tests/test_data/wing.grr`, stopping one step short of the original: the
-  final loft-to-surface step (`geoml.interpolate_curves`) segfaults on this plugin's
-  own build for any input tried - a real, reproducible bug, most likely a further
-  geoml-vs-OCCT-7.9 incompatibility beyond `scripts/geoml-occt79-compat.patch`'s own
-  6 fixes, not a binding problem (see this recipe's own top comment and
-  `../DESIGN.md`) - worth reporting upstream to DLR-SC/geoml.
+  `geoml.Transform`, lofted into one B-spline surface (`geoml.interpolate_curves`)
+  and turned into a real face via the *native* `occt.BRepBuilderAPI_MakeFace`
+  binding, exported as a `.brep`. Ported from `legacy-geo/tests/test_data/wing.grr`,
+  completing every step of the original. The curve list `geoml.interpolate_curves`
+  needs is built with the native `occt.Geom_Curve.as_vec(...)`
+  (`grunk-occt`'s own `src/geom/geom_extras.hpp`) - `geoml.curve_vec`
+  (`../src/curve_vec_extras.hpp`), this recipe's own hand-written escape hatch for
+  the same step, is gone now that grunk's `with_std_vector()` supports `Handle(X)`
+  element types directly - see `../DESIGN.md`'s "interpolate_curves segfault, real
+  root cause found" and its two follow-ups ("fixed upstream and fully landed", and
+  the `with_std_vector`/`grunk-dev/grunk-occt#1` one) for the full story (not a
+  geoml bug; the `Handle(X)` derived-to-base conversion limitation that also
+  affected `BRepBuilderAPI_MakeFace` is fixed for real now, both here and in
+  `grunk-occt`, so no escape hatch is needed anywhere in this recipe anymore).
 - `airplane_seats.grr.yml` - a parametric expression (`seat_z = h_sitting_surface -
   h_cushion`, plain Lua arithmetic on two parameters - already reactive in grunk's
   current API, no `grunk.expression(...)` call needed, see the recipe's own top
@@ -61,18 +70,18 @@ the whole point of `grunk-geoml` existing alongside `grunk-occt` (`Handle(X)` va
 ## A real, generic grunk-core limitation found while porting these
 
 `geoml.Transform`'s own `operator()` (`src/transform_extras.hpp`, a hand-written
-escape hatch - the generator has no C++-`operator()`-to-Lua-`__call` mapping) works
-fine when called directly (`xf(point)`) in a plain `grunk::state::create_env()`
-environment, but **not** inside a real recipe's `steps:` block: grunk's own
-decorated/parametric environment (which every recipe actually runs in, for
-dependency tracking) wraps every value in a `grunk::Feature<object>`, and that
-wrapping does not forward Lua's `__call` metamethod on an arbitrary userdata the way
-it forwards named function/method calls - "attempt to call a
-sol.grunk::Feature&lt;...&gt; value". A real, generic gap in `grunk`'s own dynamic
-layer, not fixable from this plugin's own registration code. Worked around by also
-registering the exact same overload set under a plain `apply` method
-(`xf:apply(point)`, ordinary colon-call syntax, which *does* work in a recipe) - both
-examples above use `:apply(...)`, not `(...)`.
+escape hatch - the generator has no C++-`operator()`-to-Lua-`__call` mapping) is
+called directly (`xf(point)`) in `wing_loft.grr.yml`'s own real recipe
+`steps:` block. This used to fail there ("attempt to call a
+sol.grunk::Feature&lt;...&gt; value") even though the identical call worked fine in a
+plain `grunk::state::create_env()` environment: grunk's own decorated/parametric
+environment (which every recipe actually runs in, for dependency tracking) wraps
+every value in a `grunk::Feature<object>`, and that wrapping didn't forward Lua's
+`__call` metamethod on an arbitrary userdata the way it forwards named
+function/method calls. Fixed upstream in `grunk` itself (`DynamicFeature` now
+registers `sol::meta_function::call` generically, the same pattern already used
+for `+`/`-`/`*`/`/` etc. - see `../DESIGN.md`) - the `apply` colon-call workaround
+this README used to document is gone.
 
 ## Running the examples
 

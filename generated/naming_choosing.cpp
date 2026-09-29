@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "naming_choosing.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/naming_choosing/Shape.h>
 

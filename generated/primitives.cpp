@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "primitives.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/primitives/modeling.hpp>
 

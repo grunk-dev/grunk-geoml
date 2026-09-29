@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_logging.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/logging/ConsoleLogger.h>
 #include <geoml/internal/logging/FileLogger.h>

@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "data_structures.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/data_structures/Array2d.h>
 #include <geoml/data_structures/conversions.h>

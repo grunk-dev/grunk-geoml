@@ -176,6 +176,29 @@ def test_emit_return_type_strips_handle_by_reference():
     assert hooks.emit_return_type("opencascade::handle<Geom_Curve>") is None  # already by-value
 
 
+def test_emit_param_handle_kind_is_by_value_not_reference():
+    # Mirrors grunk-occt's own identical override/test - see that file's own
+    # (longer) comment for the full "why": sol2's own Handle(Derived)->
+    # Handle(Base) unique-usertype conversion (needs SOL_BASE_CLASSES/
+    # SOL_DERIVED_CLASSES too, see generate.py's own
+    # render_sol_base_classes_header) only ever applies to a genuinely
+    # by-value parameter - a Handle(X) const& (the verbatim spelling of
+    # almost every real geoml/OCCT declaration) must be emitted as a plain
+    # opencascade::handle<X> instead. This is what lets e.g.
+    # BRepBuilderAPI_MakeFace's Handle(Geom_Surface) parameter accept a
+    # Handle(Geom_BSplineSurface) argument natively (see DESIGN.md) - a
+    # separate fix (grunk's with_std_vector<VecElement>() gaining the same
+    # by-value treatment) is what later let curve_vec_extras.hpp's own
+    # exact-type-only workaround be dropped entirely.
+    hooks = Hooks()
+    param = generate.Param("const opencascade::handle<Geom_Curve>&", "c")
+    decl, arg = hooks.emit_param(param, "handle")
+    assert decl == "opencascade::handle<Geom_Curve> c"
+    assert "&" not in decl
+    assert "const" not in decl
+    assert arg == "c"
+
+
 # ---------------------------------------------------------------------------
 # emit_callable() - Standard_Real AD dual-emission
 # ---------------------------------------------------------------------------

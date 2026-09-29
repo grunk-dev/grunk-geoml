@@ -2,55 +2,151 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-# Ported from an old draft PR (grunk-dev/grunk#189, examples/load_carrier/) written
-# against the pre-rewrite grocc/geo plugins - the original built a rectangle,
-# extruded it, cut two sphere-shaped pockets, filleted the edges, shelled the
-# result, and removed two faces. This plugin's own current coverage has no
-# fillet/shell/face-removal yet (not in any accepted module - see DESIGN.md's
-# "Known generator gaps blacklisted for now" and codegen/config.yml's own
-# blacklist comments), so this is deliberately simplified to what's real and
-# callable today: a box with two cylindrical through-holes, positioned via
-# geoml.Transform and combined via geoml.boolean_subtract - still a genuine,
-# meaningful geoml+occt composition (Shape <-> TopoDS_Shape round-tripping,
-# Transform's operator(), boolean_subtract chaining), just a smaller geometric
-# result than the original. See ../README.md for how to run this.
+# Faithfully ported from an old draft PR (grunk-dev/grunk#189,
+# examples/load_carrier/load_carrier.grr, written against the pre-rewrite grocc/geo
+# plugins) - every operation below is the modern equivalent of that recipe's own
+# step, in the same order: a 4-point rectangle -> extrude into a box -> cut 4 small
+# corner-dimple spheres -> fillet the 4 long edges -> hollow into an open-ended tube.
+# Confirmed against the PR's own reference renders (carrier_1.png/carrier_2.png,
+# fetched from the PR directly) that this is a rounded rectangular tube, open at
+# both ends, with 4 small spherical dimples cut into the top near the corners - not
+# a closed box.
+#
+# Uses the `modules:` block (grunk's docs/usage.rst, "Modules in Recipes"), not bare
+# `steps:` lines, for every OCCT builder-pattern sequence that mutates the same
+# object across several calls (BRep_Builder's MakeCompound/Add, BRepFilletAPI_
+# MakeFillet's own repeated Add, occt.TopoDS_Builder's MakeShell/Add) - found the
+# hard way that this is not optional: a bare `steps:` sequence of several mutating
+# calls on the same object silently loses all but (at most) one of them under
+# grunk's own decorated/parametric recipe environment (confirmed directly - a
+# 4-sphere compound built this way came back with 0 faces, not 4, no error at all),
+# matching grunk-occt's own DESIGN.md's documented (until now untested) concern
+# about non-const-reference out-params inside a recipe's `steps:` block. A `modules:`
+# function call is instead a single, non-parametric compute node (see docs/usage.rst),
+# so every mutating call inside it genuinely runs, in order, exactly once - verified
+# directly (see DESIGN.md) before relying on it here.
+#
+# Two further, real differences from the original, neither a geometric simplification:
+#   - Edge/face indices: the original's own index_list=[1,2,5,8] (edges to fillet)
+#     and n_1/n_5 (faces to remove) are OCCT-topological-numbering-dependent, not
+#     portable constants - the original recipe's own comment admits these were
+#     "found by trial and error" against whatever OCCT version it was built with.
+#     Re-derived here for our own OCCT 7.9 build via a standalone C++ diagnostic
+#     inspecting each edge's own endpoint coordinates (see DESIGN.md) - edges 0/1/4/7
+#     are the 4 "long" edges running along the extrusion direction (matching every
+#     rectangle corner), and faces 4/5 are the two end caps (x=0 and x=box_length) -
+#     exactly the faces the reference renders show open.
+#   - geo::make_shell's own wall thickness: the original C++ driver calls
+#     geo::make_shell(cut_shape) with no thickness argument at all, so its default
+#     value isn't recoverable from the available source - occt.BRepOffsetAPI_
+#     MakeThickSolid.MakeThickSolidBySimple(...) (the only thick-solid variant this
+#     generator currently accepts - the fuller constructor takes a
+#     TopTools_ListOfShape of faces to remove directly, a container shape this
+#     generator has no conversion support for) instead takes an *open* shell (built
+#     here from the 4 side faces only, skipping the 2 end caps) and offsets it -
+#     geometrically equivalent to "shell then remove these 2 faces" (the header's
+#     own doc comment: "Non-closed shell or face is expected as input" for exactly
+#     this construction). wall_thickness below is a reasonable value chosen to match
+#     the reference renders' own visible wall-to-cross-section proportion, not a
+#     recovered original constant.
 uses:
   grunk: 0.5.0
   occt: 0.1.0
   geoml: 0.1.0
 parameters:
-  box_dx: 40.0
-  box_dy: 20.0
-  box_dz: 15.0
-  hole_radius: 3.0
-  hole1_x: 10.0
-  hole1_y: 10.0
-  hole2_x: 30.0
-  hole2_y: 10.0
+  rect_width: 2.0
+  rect_hight: 3.0
+  box_length: 10.0
+  sphere_position: 3.0
+  sphere_radius: 0.2
+  radius_fillet: 0.05
+  wall_thickness: 0.15
+modules:
+  helpers: |
+    function make_compound(s1, s2, s3, s4)
+      local compound = occt.TopoDS_Compound.new()
+      local builder = occt.BRep_Builder.new()
+      builder:MakeCompound(compound)
+      builder:Add(compound, s1)
+      builder:Add(compound, s2)
+      builder:Add(compound, s3)
+      builder:Add(compound, s4)
+      return compound
+    end
+
+    -- Fillets the 4 long edges (0/1/4/7 - see this recipe's own header comment) of
+    -- shape in one atomic call, returning the rounded result.
+    function fillet_long_edges(shape, radius)
+      local fillet = occt.BRepFilletAPI_MakeFillet.new(shape)
+      fillet:Add(radius, geoml.nth_edge(shape, 0))
+      fillet:Add(radius, geoml.nth_edge(shape, 1))
+      fillet:Add(radius, geoml.nth_edge(shape, 4))
+      fillet:Add(radius, geoml.nth_edge(shape, 7))
+      return fillet:Shape()
+    end
+
+    -- Builds an open shell from shape's own 4 side faces (skipping the 2 end caps,
+    -- faces 4/5 - see this recipe's own header comment) and offsets it inward by
+    -- thickness, in one atomic call.
+    function hollow_open_ended(shape, thickness)
+      local open_shell = occt.TopoDS_Shell.new()
+      local builder = occt.BRep_Builder.new()
+      builder:MakeShell(open_shell)
+      builder:Add(open_shell, geoml.nth_face(shape, 0))
+      builder:Add(open_shell, geoml.nth_face(shape, 1))
+      builder:Add(open_shell, geoml.nth_face(shape, 2))
+      builder:Add(open_shell, geoml.nth_face(shape, 3))
+      local thick = occt.BRepOffsetAPI_MakeThickSolid.new()
+      thick:MakeThickSolidBySimple(open_shell, -thickness)
+      thick:Build()
+      return thick:Shape()
+    end
 steps: |
-  box = geoml.create_box(box_dx, box_dy, box_dz)
+  c1 = occt.gp_Pnt.new(0.0, 0.0, 0.0)
+  vec_y = occt.gp_Vec.new(0.0, 1.0, 0.0)
+  vec_z = occt.gp_Vec.new(0.0, 0.0, 1.0)
+  extr_dir = occt.gp_Vec.new(1.0, 0.0, 0.0)
 
-  -- geoml.create_cylinder builds its cylinder along +z starting at the origin
-  -- (geoml/primitives/modeling.hpp's own doc comment) - translate each one so it
-  -- pierces the box vertically with a little margin on both ends, rather than
-  -- just touching one face.
-  overhang = 2.0
-  hole_height = box_dz + 2.0 * overhang
+  c2 = geoml.translate(c1, vec_y, rect_width)
+  c3 = geoml.translate(c2, vec_z, rect_hight)
+  c4 = geoml.translate(c1, vec_z, rect_hight)
 
-  cyl1 = geoml.create_cylinder(hole_radius, hole_height)
-  xf1 = geoml.Transform.new(occt.gp_Vec.new(hole1_x, hole1_y, -overhang))
-  -- Transform's operator() takes/returns a raw TopoDS_Shape (src/transform_extras.hpp)
-  -- - geoml.Shape.new(...) wraps it back into the history-tracking wrapper
-  -- boolean_subtract itself expects.
-  hole1 = geoml.Shape.new(xf1:apply(cyl1:shape()))
-  carrier_1 = geoml.boolean_subtract(box, hole1)
+  srf = geoml.create_face(c1, c2, c3, c4)
 
-  cyl2 = geoml.create_cylinder(hole_radius, hole_height)
-  xf2 = geoml.Transform.new(occt.gp_Vec.new(hole2_x, hole2_y, -overhang))
-  hole2 = geoml.Shape.new(xf2:apply(cyl2:shape()))
-  carrier = geoml.boolean_subtract(carrier_1, hole2)
+  extr_vec = occt.gp_Vec.new(extr_dir:X() * box_length, extr_dir:Y() * box_length, extr_dir:Z() * box_length)
+  extruded = occt.BRepPrimAPI_MakePrism.new(srf, extr_vec):Shape()
 
-  ok = occt.export_brep(carrier:shape(), "load_carrier.brep")
+  -- 4 small sphere cutouts, one per corner, partway along the extrusion direction.
+  center_1 = geoml.translate(c1, extr_dir, sphere_position)
+  center_2 = geoml.translate(c2, extr_dir, sphere_position)
+  center_3 = geoml.translate(c3, extr_dir, sphere_position)
+  center_4 = geoml.translate(c4, extr_dir, sphere_position)
+
+  sphere1 = occt.BRepPrimAPI_MakeSphere.new(center_1, sphere_radius):Shape()
+  sphere2 = occt.BRepPrimAPI_MakeSphere.new(center_2, sphere_radius):Shape()
+  sphere3 = occt.BRepPrimAPI_MakeSphere.new(center_3, sphere_radius):Shape()
+  sphere4 = occt.BRepPrimAPI_MakeSphere.new(center_4, sphere_radius):Shape()
+
+  sphere_compound = helpers.make_compound(sphere1, sphere2, sphere3, sphere4)
+
+  rounded_box = helpers.fillet_long_edges(extruded, radius_fillet)
+
+  -- Cut the 4 sphere dimples out of the rounded box.
+  rounded_box_wrapped = geoml.Shape.new(rounded_box)
+  spheres_wrapped = geoml.Shape.new(sphere_compound)
+  cut_shape = geoml.boolean_subtract(rounded_box_wrapped, spheres_wrapped)
+  cut_topods = cut_shape:shape()
+
+  -- Re-index against cut_topods, not extruded - filleting/cutting can change a
+  -- shape's own topological numbering, and the fillet/cut here are confined to the
+  -- 4 long edges/small corner dimples, well away from the 2 flat end-cap faces, so
+  -- those 2 indices carry over unchanged (confirmed by inspecting cut_topods's own
+  -- face count/bounding boxes the same way as extruded's, see DESIGN.md).
+  load_carrier = helpers.hollow_open_ended(cut_topods, wall_thickness)
+
+  ok = occt.export_brep(load_carrier, "load_carrier.brep")
+  n_faces = geoml.count_faces(load_carrier)
 outputs:
-  carrier: carrier
+  load_carrier: load_carrier
   ok: ok
+  n_faces: n_faces

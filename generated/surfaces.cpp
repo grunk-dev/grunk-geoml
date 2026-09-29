@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "surfaces.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/surfaces/surfaces.h>
 

@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_math.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/math/IntersectBSplines.h>
 #include <geoml/internal/math/MathFunctions.h>
@@ -71,15 +72,15 @@ void register_internal_math(grunk::plugin_namespace& ns)
         .add_member_function("derivative", [](ValueWithDerivative const& self) -> const double { return self.derivative(); });
     ns.register_type<ProjectPointOnCurveAtAngle, sol::automagic_flags::none>("ProjectPointOnCurveAtAngle")
         .add_constructors(
-            [](const gp_Pnt & p, const opencascade::handle<Geom_Curve> & curve, double angle, const gp_Dir & planeRefNormal) { return ProjectPointOnCurveAtAngle(p, curve, angle, planeRefNormal); }
+            [](const gp_Pnt & p, opencascade::handle<Geom_Curve> curve, double angle, const gp_Dir & planeRefNormal) { return ProjectPointOnCurveAtAngle(p, curve, angle, planeRefNormal); }
         )
         .add_member_function("IsDone", [](ProjectPointOnCurveAtAngle const& self) -> bool { return self.IsDone(); })
         .add_member_function("Point", [](ProjectPointOnCurveAtAngle const& self, int i) -> gp_Pnt { return self.Point(i); })
         .add_member_function("Parameter", [](ProjectPointOnCurveAtAngle const& self, int i) -> double { return self.Parameter(i); })
         .add_member_function("NbPoints", [](ProjectPointOnCurveAtAngle const& self) -> int { return self.NbPoints(); });
     ns.register_function("IntersectBSplines", sol::overload(
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
@@ -110,8 +111,8 @@ void register_internal_math(grunk::plugin_namespace& ns)
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
@@ -142,8 +143,8 @@ void register_internal_math(grunk::plugin_namespace& ns)
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
@@ -174,8 +175,8 @@ void register_internal_math(grunk::plugin_namespace& ns)
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](const opencascade::handle<Geom_BSplineCurve> curve1, const opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
+        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });

@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "internal_common.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/internal/common/COptionList.h>
 #include <geoml/internal/common/CommonFunctions.h>

@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "boolean_ops.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/boolean_ops/modeling.hpp>
 

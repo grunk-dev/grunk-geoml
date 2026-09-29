@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "utilities.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/utilities/utilities.h>
 
@@ -50,8 +51,8 @@ using namespace geoml;
 void register_utilities(grunk::plugin_namespace& ns)
 {
 
-    ns.register_function("extract_control_point_vector_in_U_direction", [](const opencascade::handle<Geom_BSplineSurface> & b_spline_surface, int j) -> std::vector<gp_Pnt> { return geoml::extract_control_point_vector_in_U_direction(b_spline_surface, j); });
-    ns.register_function("extract_control_point_vector_in_V_direction", [](const opencascade::handle<Geom_BSplineSurface> & b_spline_surface, int i) -> std::vector<gp_Pnt> { return geoml::extract_control_point_vector_in_V_direction(b_spline_surface, i); });
+    ns.register_function("extract_control_point_vector_in_U_direction", [](opencascade::handle<Geom_BSplineSurface> b_spline_surface, int j) -> std::vector<gp_Pnt> { return geoml::extract_control_point_vector_in_U_direction(b_spline_surface, j); });
+    ns.register_function("extract_control_point_vector_in_V_direction", [](opencascade::handle<Geom_BSplineSurface> b_spline_surface, int i) -> std::vector<gp_Pnt> { return geoml::extract_control_point_vector_in_V_direction(b_spline_surface, i); });
     ns.register_function("make_fillet", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const Shape & solid, const Shape & edges, sol::object radius) -> Shape { return geoml::make_fillet(solid, edges, geoml_plugin::to_real(radius)); }

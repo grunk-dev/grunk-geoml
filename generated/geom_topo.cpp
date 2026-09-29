@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "geom_topo.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/geom_topo_conversions/geom_topo_conversions.h>
 
@@ -52,11 +53,11 @@ void register_geom_topo(grunk::plugin_namespace& ns)
 
     ns.register_function("SurfaceToFace", 
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const opencascade::handle<Geom_Surface> & surface, sol::object tolDegEd) -> TopoDS_Face { return geoml::SurfaceToFace(surface, geoml_plugin::to_real(tolDegEd)); }
+            [](opencascade::handle<Geom_Surface> surface, sol::object tolDegEd) -> TopoDS_Face { return geoml::SurfaceToFace(surface, geoml_plugin::to_real(tolDegEd)); }
 #else
-            [](const opencascade::handle<Geom_Surface> & surface, Standard_Real tolDegEd) -> TopoDS_Face { return geoml::SurfaceToFace(surface, tolDegEd); }
+            [](opencascade::handle<Geom_Surface> surface, Standard_Real tolDegEd) -> TopoDS_Face { return geoml::SurfaceToFace(surface, tolDegEd); }
 #endif
         );
-    ns.register_function("CurveToEdge", [](const opencascade::handle<Geom_Curve> & curve) -> TopoDS_Edge { return geoml::CurveToEdge(curve); });
+    ns.register_function("CurveToEdge", [](opencascade::handle<Geom_Curve> curve) -> TopoDS_Edge { return geoml::CurveToEdge(curve); });
     ns.register_function("EdgeToCurve", [](const TopoDS_Edge & edge) -> opencascade::handle<Geom_Curve> { return geoml::EdgeToCurve(edge); });
 }

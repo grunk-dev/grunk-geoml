@@ -38,6 +38,7 @@
 using namespace geoml;
 
 #include "transformations.hpp"
+#include "sol_base_classes.hpp"
 
 #include <geoml/transformations/Transform.h>
 #include <geoml/transformations/transformations.h>
