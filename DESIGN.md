@@ -945,6 +945,109 @@ genuinely differ per station as described above - checked directly, not just
 inferred from `ok`), full `runUnitTests` (23/23) and `test_hooks.py` (18/18)
 green.
 
+## `airplane_seats`: real line-by-line re-port, and a genuine grunk-core `DynamicFeature::as()` bug found along the way (2026-09-30)
+
+The previous `airplane_seats.grr.yml` was the same category of fabrication the
+"STALE, DO NOT TRUST" section above already documents for this file and
+`gasturbine_cavity_update.grr.yml`: a single `geoml.create_box` standing in for
+the whole model. Replaced with a full, faithful, line-by-line re-port of the real
+original (`grunk-dev/grunk#189`'s own `seat_model.grr.yml`/`seat_model.py`),
+mirroring the original's own two-tier structure exactly: nested `recipes:` for the
+5 logically independent sub-models (`seat` - itself containing `seat_cushion`/
+`backrest` - `armrest`, `support`), `modules:` for the imperative
+`BRep_Builder`/`BRepFilletAPI_MakeFillet` sequences each one needs (the same
+`grunk.Recipe`/`grunk.script` distinction the original already drew). Every fillet
+edge/face index is the original's own literal value, unchanged - re-verified
+against this project's own OCCT 7.9 build via a standalone diagnostic
+(`scratchpad/handlex-spike/seat_diag.cpp`) reconstructing the whole model and
+checking every indexed lookup's real geometry, matching `load_carrier`'s own
+established verification technique. `gasturbine_cavity_update.grr.yml` needed no
+equivalent rewrite: the real original PR189 recipe behind it uses zero
+`geo::`/geoml-namespaced calls at all (confirmed by grepping its own diff), so it
+is correctly a pure duplicate of `grunk-occt`'s own `cavity_model.grr.yml` as-is.
+
+**A real, previously-unknown constraint on `modules:` scripts, found the hard
+way**: `grunk::state`'s constructor only calls `lua.open_libraries(sol::lib::base)`
+(`grunk/dynamic/state.hpp`), and a module script's own execution environment
+(`run_module_script`'s `exec_env`, chained to `original_env` via its metatable's
+`__index` - see `create_module`) is a **fresh table, never chained to Lua's real
+globals table** at all. Base-library functions like `ipairs`/`pairs`/`table.unpack`
+live in `lua.globals()`, which a module script's environment simply never sees -
+confirmed directly: a helper using `for _, s in ipairs({...}) do` failed with
+"attempt to call a nil value (global 'ipairs')". No existing example in this
+project or `grunk-occt` had ever exercised a loop inside `modules:` before, so this
+was never previously hit. **Fixed at the recipe level, not in grunk core** (this
+is a real, working-as-designed sandboxing property, not a bug): every `helpers`
+module's `make_compound`/`edges_at`/`fillet_at` now uses only core Lua syntax with
+no library dependency at all - `{...}` to capture varargs, `#` (the length
+operator) plus a numeric `for i = 1, #t do` loop, no `ipairs`/`pairs`/
+`table.unpack` anywhere.
+
+**A second, genuine limitation, already known in principle but newly exercised in
+anger**: a `modules:` function's return value carries no static return-type hint
+(only registered constructor/member-function calls get one, via
+`deduce_return_type_hint` - see `function_meta.hpp`), so a decorated `steps:`
+script cannot chain a colon-call directly onto it (`helpers.fillet_at(...):shape()`
+fails with "no static type information available ... use :as(Type) explicitly").
+The natural fix, `:as(Type)`, turned out to have sharp edges of its own (below) -
+the **actual** fix applied here sidesteps the whole problem instead:
+`fillet_at`/`fillet_face_at` now call `:shape()` **inside the module function
+itself** (`return geoml.make_fillet(...):shape()`), where it's a plain, synchronous,
+undecorated colon-call on a freshly-constructed, definitely-valid `geoml::Shape` -
+completely safe, and turns the module function's return value into a
+plain `TopoDS_Shape`. Every downstream consumer (`geoml.translate`,
+`geoml.repeat_shape`, `occt.BRepAlgoAPI_Cut`, `helpers.make_compound`, a
+`RecipeCaller::get(...)` result passed straight into another call) already takes
+`TopoDS_Shape` directly and never needs to call a method on the untyped feature at
+all, so no `:as()` is needed anywhere in the final recipe.
+
+**A real, previously-unknown grunk-core bug found while chasing this the hard
+way, before landing on the fix above**: an early attempt used `:as(geoml.Shape)`
+at each fillet step instead, chained with `.method()` (dot-call - `:method()`
+double-counts `self`, a real footgun `grunk`'s own `dynamic_state.cpp` tests
+already warn about via comment, not something newly discovered here). That
+version segfaulted deep inside `geoml::Shape::shape()` itself, reproducibly, on
+every run. Root-caused via a real gdb backtrace with debug symbols (not
+guessed): `DynamicFeature::as()`'s returned proxy table captured `this` - a raw
+pointer to the `DynamicFeature` `:as()` was called on - instead of a copy. For
+the common case of calling `:as()` on the unnamed result of a module-function call
+(exactly this recipe's own pattern), nothing else keeps that original temporary's
+Lua userdata reachable, so once Lua's GC collected it, the captured pointer
+dangled; the next actual method call through the proxy then read/dereferenced
+`geoml::Shape`'s own internal (pImpl, `shared_ptr`-backed) state through
+garbage memory. **Fixed upstream in `grunk` itself** (uncommitted, per the
+project's own fix-then-bump workflow - see `feedback_grunk_core_fix_workflow.md`):
+`grunk/dynamic/DynamicFeature.hpp`'s `as()` now captures a *copy* of `*this`
+(`Feature<object>` is a thin, cheaply-copyable handle around a shared
+`parametric::param<T>` node, so this is nearly free and keeps the feature alive
+via its own reference counting, independent of Lua's GC) - critically, still
+passing that Feature *by value*, not its already-evaluated value, into the
+wrapped method call, since passing the evaluated value instead was tried first
+and silently broke dependency tracking/laziness (confirmed via 3 real, pre-existing
+grunk test failures - stale values after a later mutation - before reverting to
+the value-preserving fix). A new permanent regression test,
+`state.as_on_module_function_result_survives_gc_and_uses_real_value`
+(`grunk/tests/cpp/dynamic_state.cpp`), reproduces the exact shape of the bug with
+a pImpl/`shared_ptr`-backed fixture type (confirmed it actually segfaults against
+the pre-fix code, not just passes trivially) and confirms the fix. All 197/197
+grunk C++ tests and 97/97 Python tests still pass. **Not yet pinned here** - this
+plugin's own `:as()` usage was designed away instead (see above), so nothing in
+this repo currently depends on the fix; it's recorded here because it's a real,
+user-facing grunk usability gap (any `:as()` call on a module-function result
+that isn't immediately, exhaustively consumed within the same expression could
+hit it) worth landing upstream regardless.
+
+**Verified end to end, the same way as every other example in this project**: all
+4 example recipes (`load_carrier`, `wing_loft`, `airplane_seats`,
+`gasturbine_cavity_update`) run cleanly via `pixi run run_examples`
+(`export_brep succeeded` for each). `airplane_seats.brep`'s own exported bounding
+box (`[-0.00482311,-0.775,-1.5e-07]` to `[0.613767,1.275,1.09661]`, read back and
+computed independently via a standalone `BRepTools::Read`+`BRepBndLib::Add`
+diagnostic) matches `seat_diag.cpp`'s own independently-computed reference bounding
+box for the same model exactly - not just "doesn't crash", the actual geometry is
+right. Full `runUnitTests` (23/23) and `test_hooks.py` (18/18) still green, no
+regressions from the `hooks.py`/pin-bump work earlier in this file.
+
 ## `classify_param()`'s `None`/rejected ambiguity fixed upstream; a deliberate divergence from grunk-occt kept (2026-09-29)
 
 `grunk-occt`'s own DESIGN.md documents the real fix for the pre-existing,

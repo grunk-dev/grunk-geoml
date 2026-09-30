@@ -37,15 +37,23 @@ the whole point of `grunk-geoml` existing alongside `grunk-occt` (`Handle(X)` va
   geoml bug; the `Handle(X)` derived-to-base conversion limitation that also
   affected `BRepBuilderAPI_MakeFace` is fixed for real now, both here and in
   `grunk-occt`, so no escape hatch is needed anywhere in this recipe anymore).
-- `airplane_seats.grr.yml` - a parametric expression (`seat_z = h_sitting_surface -
-  h_cushion`, plain Lua arithmetic on two parameters - already reactive in grunk's
-  current API, no `grunk.expression(...)` call needed, see the recipe's own top
-  comment) feeding a `geoml.create_box` cushion stand-in. Ported from an old draft
-  PR (`grunk-dev/grunk#189`), simplified from the original's raw-OCCT
-  compound/edge/fillet construction to a single box - the point is the reactive
-  expression, not cushion CAD fidelity. `run_example.py` also demonstrates the
-  reactivity directly (changes `h_cushion`, re-reads `seat_z` with no re-read from
-  disk).
+- `airplane_seats.grr.yml` - a full, faithful, line-by-line re-port of the real
+  original (`grunk-dev/grunk#189`'s own `seat_model.grr.yml`/`seat_model.py`): a
+  row of airplane seats built from 5 nested sub-`recipes:` (`seat` - itself
+  containing `seat_cushion`/`backrest` - `armrest`, `support`), each with its own
+  `modules:` helpers for the `BRepFilletAPI_MakeFillet`/`BRep_Builder` sequences
+  they need, composed and repeated (`geoml.repeat_shape`) into the final row. See
+  the recipe's own top comment for the real fillet edge/face indices (re-verified
+  against this build's own OCCT topology, not copied from the legacy recipe's own
+  non-portable values) and `../DESIGN.md`'s "airplane_seats: real line-by-line
+  re-port" for two real limitations this recipe ran into along the way: `modules:`
+  scripts have no access to Lua's base-library helpers like `ipairs`/`table.unpack`
+  (`grunk::state` only opens `sol::lib::base` into Lua's real globals table, which a
+  module script's own execution environment is never chained to - the helpers here
+  use only core `{...}`/`#`/numeric-`for` syntax instead), and why every helper
+  function calls `:shape()` on its own `geoml::Shape` result *before* returning it
+  (a plain `TopoDS_Shape` needs no `:as(Type)` dance at all downstream - `:as()`
+  itself turned out to have a real, separately-documented grunk-core bug of its own).
 - `gasturbine_cavity_update.grr.yml` - **recipe composition**: a named, inline
   sub-recipe (`recipes: { cavity: {...} }`) is invoked from the outer `steps:` block
   via `recipes.cavity():get("cavity_shape")` and subtracted from a larger block.

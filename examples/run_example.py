@@ -43,20 +43,6 @@ def run_recipe(state: "grunk.state", recipe_path: Path) -> "grunk.Recipe":
     return recipe
 
 
-def run_airplane_seats(state: "grunk.state", recipe_path: Path) -> None:
-    """Beyond run_recipe's own ok-check: demonstrates the recipe is genuinely
-    reactive, not a one-shot script - changing h_cushion re-derives seat_z (a plain
-    Lua-arithmetic expression, see the recipe's own top comment) without re-reading
-    the recipe from disk."""
-    recipe = run_recipe(state, recipe_path)
-    seat_z = recipe.get_output("seat_z").value().as_float()
-    print(f"  seat_z = {seat_z}")
-
-    recipe.get_feature("h_cushion").set_value(5.0)
-    seat_z_after = recipe.get_output("seat_z").value().as_float()
-    print(f"  after changing h_cushion to 5.0, seat_z = {seat_z_after} (reactive re-derivation, no re-read)")
-
-
 def main() -> None:
     if len(sys.argv) != 3:
         sys.exit(f"usage: {sys.argv[0]} /path/to/libgeoml_plugin.so /path/to/libocct_plugin.so")
@@ -79,7 +65,7 @@ def main() -> None:
 
     run_recipe(state, EXAMPLES_DIR / "load_carrier.grr.yml")
     run_recipe(state, EXAMPLES_DIR / "wing_loft.grr.yml")
-    run_airplane_seats(state, EXAMPLES_DIR / "airplane_seats.grr.yml")
+    run_recipe(state, EXAMPLES_DIR / "airplane_seats.grr.yml")
     run_recipe(state, EXAMPLES_DIR / "gasturbine_cavity_update.grr.yml")
 
 

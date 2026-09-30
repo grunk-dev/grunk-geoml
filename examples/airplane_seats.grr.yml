@@ -2,37 +2,470 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-# Ported from an old draft PR's own airplane_seats example (grunk-dev/grunk#189,
-# examples/airplane_seats/seat_model.py) - the real mechanism being demonstrated is
-# a **parametric expression**: that PR's own seat_cushion_recipe()/backrest_recipe()
-# used grunk.expression("seat_z", "h_sitting_surface - h_cushion", h_sitting_surface,
-# h_cushion) to compute a derived dimension with dependency tracking. The current
-# API has no grunk.expression(...) call at all - a recipe's own steps: block already
-# runs in grunk's decorated/parametric environment, where plain Lua arithmetic on
-# two Feature-wrapped parameters already produces a new, reactive Feature with full
-# dependency tracking (confirmed via grunk's own tests/cpp/dynamic_operators.cpp,
-# `fx + fy` there): this recipe's own `seat_z = h_sitting_surface - h_cushion` line
-# *is* the same mechanism, just spelled as plain arithmetic instead of a named
-# helper function. Geometry deliberately simplified to a single box (a "seat
-# cushion" stand-in) rather than the original's own raw-OCCT compound/edge/fillet
-# construction - the point here is the reactive expression feeding a real geoml
-# construction call, not cushion CAD fidelity. See ../README.md for how to run this
-# (run_example.py also demonstrates the reactivity directly: changing h_cushion and
-# re-reading seat_z without re-reading the recipe from disk).
+# Line-by-line ported from the real original PR (grunk-dev/grunk#189,
+# examples/airplane_seats/seat_model.grr.yml + seat_model.py) - not reconstructed
+# from scratch to merely look similar (a previous version of this file was
+# fabricated - a single geoml.create_box standing in for the whole model - and
+# rejected; see DESIGN.md). Mirrors the original's own two-tier structure exactly:
+# `recipes:` (grunk.Recipe/insert_recipe in the original) for the 5 logically
+# independent, reusable sub-models (seat, its own nested seat_cushion/backrest,
+# armrest, support), `modules:` (grunk.script in the original) for imperative
+# BRep_Builder/BRepFilletAPI_MakeFillet/gp_Trsf sequences - the same distinction
+# the original itself already drew between grunk.Recipe and grunk.script.
+#
+# Real, deliberate differences from the original, not simplifications:
+#   - Parameter placement: the original's own seat_cushion_recipe()/backrest_recipe()/
+#     armrest_recipe()/support_recipe() each independently redeclare an identical
+#     default for h_sitting_surface/h_cushion/l_cushion/dx_back/phi_recline/
+#     w_sitting_surface (then wire them to agree via recipe.recipe(...)'s own
+#     inputs dict) - defined once here instead, as top-level parameters, and
+#     passed into each sub-recipe's own RecipeCaller via caller["name"] = value
+#     (grunk's own current recipe-composition API, RecipeCaller::operator[] -
+#     see grunk/recipe/RecipeCaller.hpp's own doc comment "Example usage from
+#     Lua: caller["input_name"] = some_value" - a single input can only be
+#     assigned before the caller's first :get(...) call, which locks it).
+#   - geo::make_fillet(solid, edge_or_edges, radius) took actual Shape/Edge
+#     objects directly (indices only for geo::internal::GetEdge/GetFace, used to
+#     build those Shape/Edge objects in the first place) - matches the CURRENT
+#     geoml.make_fillet(Shape, Shape, radius) exactly (geoml::make_fillet's own
+#     real implementation, src/geoml/utilities/utilities.cpp, extracts every
+#     edge sub-shape from whatever Shape is passed as "edges" via
+#     select_subshapes(is_edge) - works identically for a single edge, several
+#     edges compounded together, or (headrest's own front-face fillet) a whole
+#     face, whose own boundary edges get extracted the same way).
+#   - geo::internal::GetEdge/GetFace's own 0-based index convention (confirmed
+#     from geoml's real CommonFunctions.cpp source: TopExp::MapShapes +
+#     TopTools_IndexedMapOfShape, iEdge+1 internally) matches this plugin's own
+#     geoml.nth_edge/nth_face (src/topexp_extras.hpp) exactly - every index
+#     value below is the original's own literal value, unchanged, verified
+#     against this project's own OCCT 7.9 build via a standalone diagnostic
+#     (scratchpad/handlex-spike/seat_diag.cpp) that reconstructs the entire
+#     model step by step and checks every indexed edge/face's own real geometry
+#     and every fillet's own success/plausibility - all of them landed exactly
+#     where the original's own naming implies (e.g. seat_box edges 1/3 are both
+#     the shared front-top/front-bottom edges; armrest_box edge 1 is the
+#     back-top edge the armrest curves down from) with zero adjustment needed,
+#     the same finding load_carrier.grr.yml's own re-port already made for its
+#     own fillet/face indices.
+#   - geo::repeat_shape(shape, direction_vector, n) took a gp_Vec directly in
+#     the original recipe (confirmed from the .grr.yml itself) even though
+#     geoml's own C++ repeat_shape(origin, Transformation, n) (added in the same
+#     commit as this very example, geoml's own ae625b2) already took a full
+#     Transformation even then - the old `geo` plugin's own binding must have
+#     accepted a gp_Vec and constructed a Transformation from it implicitly;
+#     this plugin's own currently-generated geoml.repeat_shape(TopoDS_Shape,
+#     Transform, int) takes the modern Transform wrapper explicitly instead, so
+#     every call below builds one via geoml.Transform.new(direction_vector) -
+#     the exact same translation-only Transformation the original's own
+#     implicit conversion would have produced.
 uses:
   grunk: 0.5.0
   occt: 0.1.0
   geoml: 0.1.0
 parameters:
-  h_sitting_surface: 45.0
-  h_cushion: 8.0
-  seat_width: 45.0
-  seat_depth: 40.0
-steps: |
-  seat_z = h_sitting_surface - h_cushion
+  n_seats: 4
+  n_supports: 3
+  w_armrest: 0.05
+  w_sitting_surface: 0.45
+  h_sitting_surface: 0.4
+  h_cushion: 0.12
+  l_cushion: 0.45
+  dx_back: 0.05
+  phi_recline: 0.17453292519943295
+  w_support: 0.03
+recipes:
+  seat:
+    uses:
+      grunk: 0.5.0
+      occt: 0.1.0
+      geoml: 0.1.0
+    parameters:
+      w_armrest: 0.05
+      w_sitting_surface: 0.45
+      h_sitting_surface: 0.4
+      h_cushion: 0.12
+      l_cushion: 0.45
+      dx_back: 0.05
+      phi_recline: 0.17453292519943295
+    modules:
+      helpers: |
+        function make_compound_from_list(shapes)
+          local compound = occt.TopoDS_Compound.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeCompound(compound)
+          for i = 1, #shapes do
+            builder:Add(compound, shapes[i])
+          end
+          return compound
+        end
 
-  cushion = geoml.create_box(seat_width, seat_depth, seat_z)
-  ok = occt.export_brep(cushion:shape(), "airplane_seats.brep")
+        function make_compound(...)
+          return make_compound_from_list({...})
+        end
+
+        function edges_at(shape, ...)
+          local idxs = {...}
+          local edges = {}
+          for i = 1, #idxs do
+            edges[i] = geoml.nth_edge(shape, idxs[i])
+          end
+          return make_compound_from_list(edges)
+        end
+
+        function fillet_at(shape, radius, ...)
+          local edges = edges_at(shape, ...)
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+        end
+
+        function fillet_face_at(shape, radius, face_index)
+          local face = geoml.nth_face(shape, face_index)
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius):shape()
+        end
+
+        function make_rotation_trsf(ax, angle)
+          local t = occt.gp_Trsf.new()
+          t:SetRotation(ax, angle)
+          return t
+        end
+    recipes:
+      seat_cushion:
+        uses:
+          grunk: 0.5.0
+          occt: 0.1.0
+          geoml: 0.1.0
+        parameters:
+          h_cushion: 0.12
+          w_armrest: 0.05
+          h_sitting_surface: 0.4
+          l_cushion: 0.45
+          w_sitting_surface: 0.45
+          f1_i1: 1
+          f1_i3: 3
+          seat_fillet_radius_leftright: 0.01
+        modules:
+          helpers: |
+            function make_compound_from_list(shapes)
+              local compound = occt.TopoDS_Compound.new()
+              local builder = occt.BRep_Builder.new()
+              builder:MakeCompound(compound)
+              for i = 1, #shapes do
+                builder:Add(compound, shapes[i])
+              end
+              return compound
+            end
+
+            function make_compound(...)
+              return make_compound_from_list({...})
+            end
+
+            function edges_at(shape, ...)
+              local idxs = {...}
+              local edges = {}
+              for i = 1, #idxs do
+                edges[i] = geoml.nth_edge(shape, idxs[i])
+              end
+              return make_compound_from_list(edges)
+            end
+
+            function fillet_at(shape, radius, ...)
+              local edges = edges_at(shape, ...)
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+            end
+        steps: |
+          seat_fillet_radius_frontback = h_cushion / 2.05
+          w_cushion = w_sitting_surface + w_armrest
+          seat_z = h_sitting_surface - h_cushion
+          seat_y = -w_armrest / 2
+
+          seat_pos = occt.gp_Pnt.new(0.0, seat_y, seat_z)
+          seat_box = occt.BRepPrimAPI_MakeBox.new(seat_pos, l_cushion, w_cushion, h_cushion):Shape()
+
+          -- f1: round the front-top and front-bottom edges (both at x=0, the
+          -- end facing away from the backrest - edges 1/3 on the raw box).
+          f1 = helpers.fillet_at(seat_box, seat_fillet_radius_frontback, f1_i1, f1_i3)
+
+          -- seat_cushion: round the left and right edges of the now-rounded
+          -- front (edges 0/3 on f1's own result, not the raw box anymore).
+          seat_cushion = helpers.fillet_at(f1, seat_fillet_radius_leftright, 0, 3)
+        outputs:
+          seat_cushion: seat_cushion
+          h_sitting_surface: h_sitting_surface
+          h_cushion: h_cushion
+          l_cushion: l_cushion
+      backrest:
+        uses:
+          grunk: 0.5.0
+          occt: 0.1.0
+          geoml: 0.1.0
+        parameters:
+          w_sitting_surface: 0.45
+          l_cushion: 0.45
+          h_cushion: 0.12
+          h_sitting_surface: 0.4
+          phi_recline: 0.17453292519943295
+          dx_back: 0.05
+          h_back: 0.82
+          backrest_radius_leftright: 0.1
+          t_headrest: 0.02
+          border_headrest: 0.02
+          h_headrest: 0.2
+          headrest_radius: 0.08
+          headrest_radius2: 0.015
+        modules:
+          helpers: |
+            function make_compound_from_list(shapes)
+              local compound = occt.TopoDS_Compound.new()
+              local builder = occt.BRep_Builder.new()
+              builder:MakeCompound(compound)
+              for i = 1, #shapes do
+                builder:Add(compound, shapes[i])
+              end
+              return compound
+            end
+
+            function make_compound(...)
+              return make_compound_from_list({...})
+            end
+
+            function edges_at(shape, ...)
+              local idxs = {...}
+              local edges = {}
+              for i = 1, #idxs do
+                edges[i] = geoml.nth_edge(shape, idxs[i])
+              end
+              return make_compound_from_list(edges)
+            end
+
+            function fillet_at(shape, radius, ...)
+              local edges = edges_at(shape, ...)
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+            end
+
+            function fillet_face_at(shape, radius, face_index)
+              local face = geoml.nth_face(shape, face_index)
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius):shape()
+            end
+
+            function make_rotation_trsf(ax, angle)
+              local t = occt.gp_Trsf.new()
+              t:SetRotation(ax, angle)
+              return t
+            end
+        steps: |
+          backrest_radius_top = 0.9 * dx_back
+          seat_z = h_sitting_surface - h_cushion
+
+          backrest_pos = occt.gp_Pnt.new(l_cushion, 0.0, seat_z)
+          backrest_box = occt.BRepPrimAPI_MakeBox.new(backrest_pos, dx_back, w_sitting_surface, h_back):Shape()
+
+          -- f3: round the top-left and top-right edges (9/11 on the raw box).
+          f3 = helpers.fillet_at(backrest_box, backrest_radius_leftright, 9, 11)
+          -- backrest: round the back-top edge (6 on f3's own result), where
+          -- the back face meets the now-rounded top.
+          backrest = helpers.fillet_at(f3, backrest_radius_top, 6)
+
+          -- headrest: a small box sunk into the top of the backrest.
+          headrest_posx = l_cushion - t_headrest
+          headrest_posz = h_sitting_surface + h_back - h_cushion - h_headrest - border_headrest
+          headrest_width = w_sitting_surface - 2 * border_headrest
+          headrest_pos = occt.gp_Pnt.new(headrest_posx, border_headrest, headrest_posz)
+          headrest_box = occt.BRepPrimAPI_MakeBox.new(headrest_pos, t_headrest, headrest_width, h_headrest):Shape()
+
+          -- f5: round the 4 side edges (8/9/10/11 on the raw box).
+          f5 = helpers.fillet_at(headrest_box, headrest_radius, 8, 9, 10, 11)
+          -- headrest: round the perimeter of the front face (0 on f5's own result).
+          headrest = helpers.fillet_face_at(f5, headrest_radius2, 0)
+
+          back = helpers.make_compound(backrest, headrest)
+
+          -- Recline the whole backrest+headrest compound about the seat's own
+          -- top-back edge.
+          rot_pnt = occt.gp_Pnt.new(l_cushion, 0.0, h_sitting_surface)
+          rot_dir = occt.gp_Dir.new(0.0, 1.0, 0.0)
+          rot_ax = occt.gp_Ax1.new(rot_pnt, rot_dir)
+          rot_trsf = helpers.make_rotation_trsf(rot_ax, phi_recline)
+          backrest_reclined = occt.BRepBuilderAPI_Transform.new(back, rot_trsf, true):Shape()
+        outputs:
+          backrest_reclined: backrest_reclined
+          dx_back: dx_back
+          phi_recline: phi_recline
+    steps: |
+      cushion_caller = recipes.seat_cushion()
+      cushion_caller["w_armrest"] = w_armrest
+      cushion_caller["w_sitting_surface"] = w_sitting_surface
+      cushion_caller["h_sitting_surface"] = h_sitting_surface
+      cushion_caller["h_cushion"] = h_cushion
+      cushion_caller["l_cushion"] = l_cushion
+      seat_cushion = cushion_caller:get("seat_cushion")
+
+      back_caller = recipes.backrest()
+      back_caller["w_sitting_surface"] = w_sitting_surface
+      back_caller["h_sitting_surface"] = h_sitting_surface
+      back_caller["h_cushion"] = h_cushion
+      back_caller["l_cushion"] = l_cushion
+      back_caller["dx_back"] = dx_back
+      back_caller["phi_recline"] = phi_recline
+      backrest_reclined = back_caller:get("backrest_reclined")
+
+      single_seat = helpers.make_compound(seat_cushion, backrest_reclined)
+    outputs:
+      single_seat: single_seat
+      h_sitting_surface: h_sitting_surface
+      h_cushion: h_cushion
+      l_cushion: l_cushion
+      dx_back: dx_back
+      phi_recline: phi_recline
+  armrest:
+    uses:
+      grunk: 0.5.0
+      occt: 0.1.0
+      geoml: 0.1.0
+    parameters:
+      h_sitting_surface: 0.4
+      l_cushion: 0.45
+      dx_back: 0.05
+      phi_recline: 0.17453292519943295
+      w_armrest: 0.05
+      h_armrest: 0.2
+      armrest_radius: 0.05
+    modules:
+      helpers: |
+        function make_compound_from_list(shapes)
+          local compound = occt.TopoDS_Compound.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeCompound(compound)
+          for i = 1, #shapes do
+            builder:Add(compound, shapes[i])
+          end
+          return compound
+        end
+
+        function make_compound(...)
+          return make_compound_from_list({...})
+        end
+
+        function edges_at(shape, ...)
+          local idxs = {...}
+          local edges = {}
+          for i = 1, #idxs do
+            edges[i] = geoml.nth_edge(shape, idxs[i])
+          end
+          return make_compound_from_list(edges)
+        end
+
+        function fillet_at(shape, radius, ...)
+          local edges = edges_at(shape, ...)
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+        end
+    steps: |
+      l_armrest = 0.75 * l_cushion
+      armrest_posx = l_cushion - l_armrest + dx_back * occt.cos(phi_recline) / 2
+      armrest_posy = -w_armrest
+      armrest_pos = occt.gp_Pnt.new(armrest_posx, armrest_posy, h_sitting_surface)
+      armrest_dx = l_armrest + h_armrest * occt.sin(phi_recline)
+      armrest_box = occt.BRepPrimAPI_MakeBox.new(armrest_pos, armrest_dx, w_armrest, h_armrest):Shape()
+
+      -- armrest_nobop: round the back-top edge (1 on the raw box) - the edge
+      -- the armrest curves down from towards the reclined backrest.
+      armrest_nobop = helpers.fillet_at(armrest_box, armrest_radius, 1)
+
+      -- Cut away everything on the far side of the reclined backrest's own
+      -- plane, so the armrest's own back end follows the recline angle.
+      pnt_x = l_cushion + dx_back * occt.cos(phi_recline) / 2.0
+      dir_x = occt.cos(phi_recline)
+      dir_z = -occt.sin(phi_recline)
+      pln_pnt = occt.gp_Pnt.new(pnt_x, 0.0, h_sitting_surface)
+      pln_dir = occt.gp_Dir.new(dir_x, 0.0, dir_z)
+      pln = occt.gp_Pln.new(pln_pnt, pln_dir)
+      face = occt.BRepBuilderAPI_MakeFace.new(pln, 0.0, 1.0, 0.0, 1.0):Face()
+      pnt = pln_pnt:Translated(occt.gp_Vec.new(dir_x, 0.0, dir_z))
+      halfspace = occt.BRepPrimAPI_MakeHalfSpace.new(face, pnt):Solid()
+      armrest = occt.BRepAlgoAPI_Cut.new(armrest_nobop, halfspace):Shape()
+    outputs:
+      armrest: armrest
+  support:
+    uses:
+      grunk: 0.5.0
+      occt: 0.1.0
+    parameters:
+      l_cushion: 0.45
+      w_support: 0.03
+      h_sitting_surface: 0.4
+      h_cushion: 0.12
+    steps: |
+      dx_support = 0.5 * l_cushion
+      support_x = (l_cushion - dx_support) / 2
+      support_pos = occt.gp_Pnt.new(support_x, 0.0, 0.0)
+      dz_support = h_sitting_surface - h_cushion
+      support = occt.BRepPrimAPI_MakeBox.new(support_pos, dx_support, w_support, dz_support):Shape()
+    outputs:
+      support: support
+modules:
+  helpers: |
+    function make_compound_from_list(shapes)
+      local compound = occt.TopoDS_Compound.new()
+      local builder = occt.BRep_Builder.new()
+      builder:MakeCompound(compound)
+      for i = 1, #shapes do
+        builder:Add(compound, shapes[i])
+      end
+      return compound
+    end
+
+    function make_compound(...)
+      return make_compound_from_list({...})
+    end
+steps: |
+  seat_caller = recipes.seat()
+  seat_caller["w_armrest"] = w_armrest
+  seat_caller["w_sitting_surface"] = w_sitting_surface
+  seat_caller["h_sitting_surface"] = h_sitting_surface
+  seat_caller["h_cushion"] = h_cushion
+  seat_caller["l_cushion"] = l_cushion
+  seat_caller["dx_back"] = dx_back
+  seat_caller["phi_recline"] = phi_recline
+  single_seat = seat_caller:get("single_seat")
+
+  dy_seat = w_sitting_surface + w_armrest
+  seat_repeat_dir = occt.gp_Vec.new(0.0, dy_seat, 0.0)
+  seat_dy_start = -0.5 * dy_seat * n_supports + w_armrest / 2
+  seat_repeat_start = occt.gp_Vec.new(0.0, seat_dy_start, 0.0)
+
+  seat_start = geoml.translate(single_seat, seat_repeat_start)
+  seat_repeat_transform = geoml.Transform.new(seat_repeat_dir)
+  seats = geoml.repeat_shape(seat_start, seat_repeat_transform, n_seats)
+
+  armrest_caller = recipes.armrest()
+  armrest_caller["w_armrest"] = w_armrest
+  armrest_caller["h_sitting_surface"] = h_sitting_surface
+  armrest_caller["l_cushion"] = l_cushion
+  armrest_caller["dx_back"] = dx_back
+  armrest_caller["phi_recline"] = phi_recline
+  armrest = armrest_caller:get("armrest")
+
+  n_armrests = n_seats + 1
+  armrest_start = geoml.translate(armrest, seat_repeat_start)
+  armrests = geoml.repeat_shape(armrest_start, seat_repeat_transform, n_armrests)
+
+  support_caller = recipes.support()
+  support_caller["h_sitting_surface"] = h_sitting_surface
+  support_caller["h_cushion"] = h_cushion
+  support_caller["l_cushion"] = l_cushion
+  support_caller["w_support"] = w_support
+  support = support_caller:get("support")
+
+  dy_support = (n_seats + 1) * dy_seat / (n_supports + 2)
+  support_repeat_dir = occt.gp_Vec.new(0.0, dy_support, 0.0)
+  support_dy_start = seat_dy_start + dy_support - w_support / 2 - w_armrest / 2
+  support_repeat_start = occt.gp_Vec.new(0.0, support_dy_start, 0.0)
+
+  support_start = geoml.translate(support, support_repeat_start)
+  support_repeat_transform = geoml.Transform.new(support_repeat_dir)
+  supports = geoml.repeat_shape(support_start, support_repeat_transform, n_supports)
+
+  row = helpers.make_compound(seats, supports, armrests)
+
+  ok = occt.export_brep(row, "airplane_seats.brep")
 outputs:
-  seat_z: seat_z
+  row: row
   ok: ok
