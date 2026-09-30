@@ -58,6 +58,14 @@
 # (bare, separate SetValue(...) statements, no modules:) silently produce 3
 # untransformed/identical curves - see this repo's own DESIGN.md's
 # "load_carrier/wing_loft: real line-by-line re-port" for the full story.
+# Bumped again 2026-09-30, to 2742afb12c65efc0e6587c2198609e6463ddea4b - lands a
+# new generate.REJECTED sentinel, distinct from None, that classify_param() can
+# return to mean "positively recognized and rejected" rather than "not my
+# concern, use the fallback" - fixes the real ambiguity that let an
+# NCollection_Array1/2 parameter this plugin's own hooks.py meant to reject (a
+# mutable reference specifically - the unsupported-element case is a deliberate
+# divergence from grunk-occt's own copy, see this repo's own DESIGN.md) silently
+# fall through to being accepted as a plain "object" instead.
 #
 # Optional -D GRUNK_INSTALL_NAME=<name>: an alternate install-directory name under
 # .deps/ (e.g. "grunk-ad" for [feature.ad.tasks]'s own invocation) - defaults to
@@ -68,7 +76,7 @@ cmake_minimum_required(VERSION 3.15)
 if(NOT DEFINED GRUNK_INSTALL_NAME)
     set(GRUNK_INSTALL_NAME "grunk")
 endif()
-set(GRUNK_REV "40d8a1ebd9f020ba3481b9949437d2aafe95425a")
+set(GRUNK_REV "2742afb12c65efc0e6587c2198609e6463ddea4b")
 
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(GRUNK_PREFIX "${PROJECT_ROOT}/.deps/${GRUNK_INSTALL_NAME}")

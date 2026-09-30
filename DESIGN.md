@@ -944,3 +944,47 @@ exactly; `wing_loft` -> `ok=1`, and the exported BREP's own control points now
 genuinely differ per station as described above - checked directly, not just
 inferred from `ok`), full `runUnitTests` (23/23) and `test_hooks.py` (18/18)
 green.
+
+## `classify_param()`'s `None`/rejected ambiguity fixed upstream; a deliberate divergence from grunk-occt kept (2026-09-29)
+
+`grunk-occt`'s own DESIGN.md documents the real fix for the pre-existing,
+narrow `test_classify_param_array1_array2` gap (`generate.REJECTED`, a new
+sentinel distinct from `None` that `classify_param()` returns to mean
+"positively recognized and rejected," vs `None` meaning "not my concern, let
+`Param.kind()`'s own fallback decide") - this plugin's own `codegen/hooks.py`
+needed the identical fix for the *mutable-reference* half of the same gap (a
+mutable `NCollection_Array1/2` parameter has no Lua-side identity to mutate an
+array in place through, a universal correctness concern with no cross-plugin
+nuance to it, exactly as in grunk-occt).
+
+**The *unsupported-element* half is deliberately handled differently here,
+not just carried over from grunk-occt unchanged**: this plugin's own
+`classify_param()` still returns plain `None` (not `REJECTED`) when an
+`NCollection_Array1<X>`/`NCollection_Array2<X>` parameter's element `X` isn't
+one of *this* plugin's own `registered_types` - because, unlike grunk-occt
+(which registers every OCCT type it ever needs itself), geoml's own codegen
+run never registers OCCT types it only *references* (`gp_Pnt`, say - owned
+entirely by grunk-occt's own separate run). Falling through to the generic
+"object" fallback in that case is the same deliberate, already-established
+cross-plugin relaxation this plugin's own `HANDLE_PATTERN` branch already
+applies to `Handle(X)` (see "Handle(X) cross-plugin sharing" above) - not a
+bug, and `tests/python/test_hooks.py::test_classify_param_array1_array2`
+already asserted this exact behavior before this fix, unchanged by it (only
+the mutable-reference sub-case gained a new assertion).
+
+**Confirmed zero practical impact from the mutable-reference half of this fix
+specifically, for real, not assumed**: grepped this plugin's own real
+`generated/*.cpp` for any mutable-reference `NCollection_Array1/2`-shaped
+parameter (the exact pattern `grunk-occt`'s own real regeneration found and
+fixed several genuine instances of, e.g. `Geom_BSplineCurve::Poles`) - none
+exist anywhere in geoml's own public API surface as currently bound (only
+const-reference/by-value array parameters, e.g. `BSplineAlgorithms::scale`'s
+own `TColgp_Array1OfPnt`/`TColgp_Array2OfPnt` overloads). A full regeneration
+was not re-run here for this reason (would reproduce this repo's own
+already-verified accept/reject/blacklist counts bit-for-bit) - `hooks.py`'s
+own fix is still real and correct, it simply has nothing to change yet in this
+plugin's own current header coverage.
+
+Verified: `test_hooks.py` 18/18 (new coverage added for the mutable-array-ref
+rejection, previously untested here at all), full `runUnitTests` (23/23) and
+all four example recipes unaffected.

@@ -58,19 +58,31 @@ def test_classify_param_array1_array2():
     hooks = Hooks()
     p1 = generate.Param("const TColgp_Array1OfPnt &", "pts", "const NCollection_Array1<gp_Pnt> &")
     assert p1.kind({"gp_Pnt"}, set(), hooks) == "array1"
-    # Unlike grunk-occt's own identical test (still pinned to the pre-fix grunk
-    # commit): when gp_Pnt isn't registered, classify_param's own "array1" attempt
-    # correctly declines (no manual to_array1 conversion without a registered
-    # element type) and returns None - but with core's own canonical-spelling
-    # over-rejection fixed upstream (see DESIGN.md's "two bugs fixed upstream"),
-    # Param.kind() no longer stops there either: TColgp_Array1OfPnt's canonical
-    # spelling (NCollection_Array1<gp_Pnt>) is a template instantiation, not a
-    # pointer, so it now falls through to the generic "object" fallback instead of
-    # being rejected outright - a real, correct behavior change, not a regression.
+    # Deliberately DIFFERENT from grunk-occt's own otherwise-identical hooks.py:
+    # when gp_Pnt isn't in *this* plugin's own registered_types, classify_param()
+    # returns plain None here (not generate.REJECTED) - not "no opinion, reject
+    # via the generic fallback anyway" but a genuine, intentional cross-plugin
+    # relaxation, mirroring the Handle(X) one below: geoml's own codegen run never
+    # registers OCCT types it only references (gp_Pnt is owned entirely by
+    # grunk-occt's own separate run), so falling through to the generic "object"
+    # fallback lets such a value cross the plugin boundary opaquely instead of
+    # being wrongly treated as "definitively unsupported" - see hooks.py's own
+    # comment on this exact branch.
     assert p1.kind(set(), set(), hooks) == "object"
 
     p2 = generate.Param("const TColStd_Array2OfReal &", "m", "const NCollection_Array2<double> &")
     assert p2.kind(set(), set(), hooks) == "array2"  # double is always supported
+
+    # Unlike the unsupported-element case above, a mutable array reference is
+    # ALWAYS a definitive rejection, in both this plugin and grunk-occt's own
+    # copy of this method - no Lua-side identity to mutate a bare array in place
+    # through, a universal correctness concern with no cross-plugin nuance to it.
+    # Confirmed this doesn't fall through to the generic "object" fallback either
+    # (which would otherwise happily accept a mutable reference to a canonically
+    # non-fundamental class).
+    p_mut = generate.Param("TColgp_Array1OfPnt &", "pts", "NCollection_Array1<gp_Pnt> &")
+    assert p_mut.kind({"gp_Pnt"}, set(), hooks) is None
+    assert p_mut.kind(set(), set(), hooks) is None
 
 
 # ---------------------------------------------------------------------------

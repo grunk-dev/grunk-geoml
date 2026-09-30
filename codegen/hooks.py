@@ -197,14 +197,50 @@ class Hooks(generate.CodeGenerator):
         # build to check a *return* type, so an array-typed return stays rejected
         # (no decided Lua-facing shape yet for a from_array1/2-converted return
         # value).
+        #
+        # Once m1/m2 actually matches, this IS an NCollection_Array1/2 parameter -
+        # a mutable reference is always a definitive rejection (generate.REJECTED,
+        # not None): there's no Lua-side identity to mutate a bare array in place
+        # through, and this is a universal correctness concern, not a cross-plugin-
+        # registration nuance - unlike the unsupported-element case just below,
+        # nothing about *this* plugin's own registered_types could ever make a
+        # mutable array reference safe. Plain None here used to let Param.kind()'s
+        # own generic BARE_TYPE_NAME fallback silently accept the param's *surface*
+        # spelling - almost always a bare-identifier typedef (e.g.
+        # "TColgp_Array1OfPnt" for "NCollection_Array1<gp_Pnt>") - as a plain
+        # mutable "object" instead (a real, confirmed bug - see
+        # generate.REJECTED's own module-level docstring; grunk-occt's own
+        # hooks.py has the identical fix).
+        #
+        # An UNSUPPORTED ELEMENT TYPE, by contrast, deliberately stays plain None
+        # here (not generate.REJECTED) - unlike grunk-occt's own otherwise-identical
+        # hooks.py: geoml's own codegen run never registers OCCT types it only
+        # references (gp_Pnt, say - owned entirely by grunk-occt's own separate
+        # run), so "element not in *this* plugin's own registered_types" does NOT
+        # mean "this array is unsupported," only "not one *this* run's own opinion
+        # can settle" - falling through to the generic "object" fallback lets such
+        # a value cross the plugin boundary opaquely, exactly the same deliberate
+        # relaxation already applied to Handle(X) above (see HANDLE_PATTERN's own
+        # comment and DESIGN.md's "Handle(X) cross-plugin sharing"). Confirmed via
+        # tests/python/test_hooks.py::test_classify_param_array1_array2's own
+        # comment - this is the one param.name/param.canonical to intentionally
+        # diverge from grunk-occt's own copy of this method.
         if param.name and param.canonical:
             canon_base = generate.strip_type(param.canonical)
             m1 = ARRAY1_PATTERN.match(canon_base)
-            if m1 and _array_element_supported(m1.group(1), registered_types):
-                return None if param.is_mutable_ref else "array1"
+            if m1:
+                if param.is_mutable_ref:
+                    return generate.REJECTED
+                if not _array_element_supported(m1.group(1), registered_types):
+                    return None
+                return "array1"
             m2 = ARRAY2_PATTERN.match(canon_base)
-            if m2 and _array_element_supported(m2.group(1), registered_types):
-                return None if param.is_mutable_ref else "array2"
+            if m2:
+                if param.is_mutable_ref:
+                    return generate.REJECTED
+                if not _array_element_supported(m2.group(1), registered_types):
+                    return None
+                return "array2"
         return None
 
     def classify_ctor_mode(self, class_name, base_chain):
