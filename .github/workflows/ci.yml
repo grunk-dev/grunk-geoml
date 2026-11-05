@@ -7,11 +7,19 @@
 # building ADOL-C/adOCCT/geoml's AD variant from source on macOS/Windows was never
 # attempted.
 #
-# NOTE: this workflow is not yet expected to pass - this repository is scaffolding
-# only so far (no codegen/config.yml, no generated/, no src/geoml_plugin.cpp, no
-# tests/ - see DESIGN.md). It's added now, matching grunk-occt's own convention of
-# having CI from the start, so it starts reporting real status as soon as those
-# pieces land rather than needing a separate "add CI" step later.
+# `run_examples` needs grunk-occt's own libocct_plugin.so (examples/run_example.py's
+# own top comment - every recipe here genuinely mixes occt.*/geoml.* calls), which
+# this repo never builds itself. Each job below checks out grunk-occt's own `main`
+# at its current HEAD into `../grunk-occt` (a real sibling checkout, same layout
+# `pixi run run_examples` already expects locally per examples/README.md) and
+# builds it there, cached by that commit SHA so an unchanged grunk-occt doesn't
+# rebuild on every grunk-geoml CI run. **Deferred, not done here**: building a full
+# sibling checkout (the AD job's own chain in particular: ADOL-C + adOCCT +
+# grunk-occt's own AD build) on every cache miss is real, avoidable CI cost -
+# distributing grunk-occt's own prebuilt plugin binaries (e.g. as GitHub Releases
+# artifacts, one per platform/variant) for this workflow to download instead of
+# building from source is the right long-term fix, once grunk-occt actually
+# publishes them.
 name: CI
 
 on:
@@ -66,6 +74,36 @@ jobs:
       - name: Test
         run: pixi run -e default test
 
+      - name: Get grunk-occt HEAD SHA
+        id: occt-sha
+        shell: bash
+        run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout grunk-occt (sibling, for run_examples)
+        uses: actions/checkout@v7
+        with:
+          repository: grunk-dev/grunk-occt
+          ref: ${{ steps.occt-sha.outputs.sha }}
+          path: ../grunk-occt
+
+      - name: Cache grunk-occt sibling build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ../grunk-occt/.deps
+            ../grunk-occt/build
+          key: ${{ runner.os }}-grunk-occt-sibling-${{ steps.occt-sha.outputs.sha }}
+
+      - name: Build grunk-occt (sibling, for run_examples)
+        working-directory: ../grunk-occt
+        # grunk-occt's own `build` task has no depends-on chain of its own (see its
+        # pixi.toml) - mirroring its own ci.yml's explicit install/configure/build
+        # sequence here, not assuming one `pixi run build` bootstraps everything.
+        run: |
+          pixi run -e default install_grunk
+          pixi run -e default configure Release
+          pixi run -e default build
+
       - name: Run examples
         run: pixi run -e default run_examples
 
@@ -114,6 +152,37 @@ jobs:
 
       - name: Test
         run: pixi run -e ad test
+
+      - name: Get grunk-occt HEAD SHA
+        id: occt-sha
+        run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout grunk-occt (sibling, for run_examples)
+        uses: actions/checkout@v7
+        with:
+          repository: grunk-dev/grunk-occt
+          ref: ${{ steps.occt-sha.outputs.sha }}
+          path: ../grunk-occt
+
+      - name: Cache grunk-occt sibling AD build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ../grunk-occt/.deps
+            ../grunk-occt/build-ad
+          key: ${{ runner.os }}-grunk-occt-sibling-ad-${{ steps.occt-sha.outputs.sha }}
+
+      - name: Build grunk-occt (sibling, AD variant, for run_examples)
+        working-directory: ../grunk-occt
+        # Same reasoning as the stock job's own sibling-build step: grunk-occt's
+        # own `-e ad build` task has no depends-on chain, mirroring its own
+        # ci.yml's explicit install/configure/build sequence instead.
+        run: |
+          pixi run -e ad install_grunk
+          pixi run -e ad install_adolc
+          pixi run -e ad install_adocct
+          pixi run -e ad configure Release
+          pixi run -e ad build
 
       - name: Run examples
         run: pixi run -e ad run_examples

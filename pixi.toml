@@ -67,6 +67,14 @@ libparametric = "*"
 python = ">=3.9"
 gtest = "*"
 pkg-config = "*"
+# scripts/install_adocct.sh's own adOCCT configure needs this directly - this
+# environment is fully isolated (no-default-feature = true) so it never gets it
+# transitively via the default environment's own `occt` conda package the way
+# install_adocct.sh's own comment assumes. Missing here is why `pixi run -e ad
+# install_adocct` failed in CI with "Could NOT find Freetype" (3RDPARTY_FREETYPE_
+# INCLUDE_DIR_ft2build/freetype2) - confirmed by reading the CMake configure
+# output directly, not assumed.
+freetype = "*"
 
 [feature.ad.pypi-dependencies]
 grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "ba3b775d89509d1f94e41c27092919561c247304" }

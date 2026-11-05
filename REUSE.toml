@@ -26,3 +26,21 @@ path = "generated/translation_units.txt"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Jan Kleinert <jan.kleinert@dlr.de>"
 SPDX-License-Identifier = "MPL-2.0"
+
+## scripts/*.patch are real git-diff output (git apply --check'd against geoml's
+## own checkouts in install_geoml.cmake/install_adgeoml.sh) - an inline SPDX
+## header would risk corrupting that diff syntax (lines before the first
+## `diff --git`/`---`/`+++` are tolerated by `patch`/`git apply`, but not
+## guaranteed never to confuse a parser), so annotated here instead, same
+## reasoning as pixi.lock above.
+[[annotations]]
+path = "scripts/geoml-occt79-compat.patch"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jan Kleinert <jan.kleinert@dlr.de>"
+SPDX-License-Identifier = "MPL-2.0"
+
+[[annotations]]
+path = "scripts/geoml-ad-occt79-compat.patch"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jan Kleinert <jan.kleinert@dlr.de>"
+SPDX-License-Identifier = "MPL-2.0"

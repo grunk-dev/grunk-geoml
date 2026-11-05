@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# scripts/*.patch are real git-diff output, applied verbatim with `git apply` (see
+# scripts/install_geoml.cmake/install_adgeoml.sh) - a unified diff's own exact byte
+# content, including its line endings, is part of what it describes, so Windows
+# checkouts' default core.autocrlf=true LF->CRLF conversion corrupts it, causing
+# `git apply` to fail with "corrupt patch at <file>:<line>" (confirmed directly:
+# this is what broke scripts/geoml-occt79-compat.patch on windows-latest CI).
+# Marking these -text disables line-ending conversion entirely, on any platform.
+scripts/*.patch -text

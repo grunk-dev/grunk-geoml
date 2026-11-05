@@ -354,5 +354,16 @@ if(GRUNK_GEOML_TESTS)
         )
     endif()
 
-    gtest_discover_tests(runUnitTests)
+    # DISCOVERY_TIMEOUT: gtest_discover_tests' own discovery run (--gtest_list_tests,
+    # invoked at build time) blew its 5s default on macOS CI, timing out the whole
+    # build - confirmed directly from the CI log ("Result: Process terminated due
+    # to timeout", "Timeout: '5'"). grunk-occt's own CMakeLists.txt hit the
+    # identical symptom and fixed it by linking runUnitTests against only the two
+    # OCCT toolkits its own test code actually needs instead of the full
+    # ${OpenCASCADE_LIBRARIES} (~50 libraries) - a more surgical fix, but one this
+    # repo's own test suite's actual OCCT header usage (Geom_BSplineCurve/
+    # Geom_Line/TopAbs_ShapeEnum/gp_*, see the target_link_libraries comment
+    # above) wasn't verified against on macOS/Windows from this environment, so a
+    # generous timeout bump is used here instead - lower-risk, same symptom fixed.
+    gtest_discover_tests(runUnitTests DISCOVERY_TIMEOUT 60)
 endif()
