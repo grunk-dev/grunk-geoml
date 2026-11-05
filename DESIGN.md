@@ -1326,14 +1326,51 @@ for the stock build; all 4 example recipes (`pixi run -e default run_examples`)
 still green, `airplane_seats.brep`'s own bounding box still matches the
 already-established reference exactly.
 
-**Known follow-up, not blocking**: `pixi.toml`'s own `[feature.ad.tasks]`
-`run_examples` task (`python examples/run_example.py build-ad/libgeoml_plugin.so
-build-ad/_deps/grunk-adolc-build/libadolc_plugin.so`) was never actually
-runnable - `examples/run_example.py` takes exactly two positional arguments,
-`(geoml_plugin, occt_plugin)`, with no AD/`adolc_plugin` concept at all, and no
-example recipe here exercises an AD derivative the way `grunk-occt`'s own
-`bspline_curve.grr.yml` does. The C++-level verification above (`tests/test_ad.cpp`)
-is what actually proves AD works correctly through this plugin's own generated
-code; a real recipe-level check mixing `occt.*`/`geoml.*` AD-carrying values
-end to end (matching `grunk-occt`'s own `run_examples`-level AD check) is a
-separate, legitimate follow-up, not done here.
+## Recipe-level mixed occt.*/geoml.* AD check (2026-11-05)
+
+The follow-up flagged above - a real recipe-level check that AD values survive
+crossing the `occt_plugin`/`geoml_plugin` boundary, not just a direct C++ call
+into one generated function - is now done, closing that gap:
+
+- **`examples/ad_translate.grr.yml`**, new: seeds a `Standard_Real` via
+  `adolc.adouble` (identical convention to `grunk-occt`'s own
+  `examples/bspline_curve.grr.yml`), builds it into an `occt.gp_Pnt`, passes it
+  through `geoml.translate` (the exact same function/closed form
+  `tests/test_ad.cpp`'s `GeomlAdTest.TranslateDerivativeMatchesClosedForm`
+  already verifies in C++), and reads the result back out through `occt.gp_Pnt`'s
+  own `:X()`/`:Y()`/`:Z()`. Degrades to a primal-only check against stock plugins
+  (`adolc` is `nil`), same as `bspline_curve.grr.yml`.
+- **A new, previously-undocumented constraint found while writing it**: calling
+  `moved:X()` directly on `geoml.translate`'s own return value failed with the
+  same "no static type information available ... use :as(Type) explicitly" error
+  as the "A second, genuine limitation" entry above - but that entry is about
+  `modules:` *Lua* function returns, and `geoml.translate` is a plugin-registered
+  *native* free function (`ns.register_function`), a different category. Confirmed
+  empirically that the same static-return-type-hint gap
+  (`deduce_return_type_hint`/`function_meta.hpp`) applies to both: a registered
+  free function's return value carries no hint either, only constructor/
+  member-function calls do. Fixed with a plain `:as(occt.gp_Pnt)` right after the
+  call - unlike that entry's own `geoml::Shape`-specific `:as()` segfault,
+  `gp_Pnt` is a simple, already-registered occt value type with no sharp edge
+  here, confirmed by the recipe actually running correctly (not assumed).
+- **`examples/run_example.py`**: `main()` now takes an optional third argument,
+  `adolc_plugin.so` (mirroring `grunk-occt`'s own script), and a new
+  `run_ad_translate()` follows the identical `run_bspline_curve()`
+  primal-value/AD-derivative/finite-difference-check pattern from that script.
+- **`pixi.toml`'s `[feature.ad.tasks]` `run_examples`**: the real bug behind the
+  "never actually runnable" follow-up - it was passing
+  `build-ad/_deps/grunk-adolc-build/libadolc_plugin.so` as `run_example.py`'s
+  *second* positional argument, which the script treats as `occt_plugin_path`,
+  not as an AD-enabling plugin at all (and `occt_plugin.so` itself, grunk-occt's
+  own sibling-repo build output, was missing from the command entirely). Fixed:
+  now passes `../grunk-occt/build-ad/libocct_plugin.so` as the second argument and
+  `.../libadolc_plugin.so` as the new, real third one.
+
+**Verified end to end, both environments**: `pixi run -e default run_examples` -
+all 4 existing recipes plus `ad_translate.grr.yml` (primal-only, `adolc` is
+`nil`) green. `pixi run -e ad run_examples` - all 4 existing recipes plus
+`ad_translate.grr.yml`'s real AD derivative check green:
+`d(moved)/d(p_x) = (1.000000, 0.000000, 0.000000)`, matching its own
+finite-difference re-evaluation of the same recipe exactly - the first time an
+AD value has been shown to survive a real `occt.*` → `geoml.*` → `occt.*` round
+trip through actual Lua recipe code, not just a direct C++ call.

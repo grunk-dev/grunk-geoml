@@ -67,11 +67,31 @@ the whole point of `grunk-geoml` existing alongside `grunk-occt` (`Handle(X)` va
   against this project's actual pinned grunk revision (confirmed empirically, not
   assumed - see `../DESIGN.md`); the syntax above is what was actually verified
   working.
+- `ad_translate.grr.yml` - **recipe-level AD check**: a `Standard_Real` seeded via
+  `adolc.adouble` (same convention as `grunk-occt`'s own
+  `examples/bspline_curve.grr.yml`) is built into an `occt.gp_Pnt`, crosses the
+  plugin boundary into `geoml.translate`, and the result's own `occt.gp_Pnt`
+  accessors are read back - proving AD values actually propagate through *both*
+  plugins at the real recipe/Lua level (`tests/test_ad.cpp` already verifies the
+  same function/closed form directly in C++, with no recipe layer involved). Only
+  exercises a real derivative against AD-enabled builds of all three plugins
+  (`occt_plugin`/`adolc_plugin` from `grunk-occt`'s own `[feature.ad]`,
+  `geoml_plugin` from this repo's own `[feature.ad]`); against stock plugins it
+  still runs (primal values only - `adolc` is `nil`). See the recipe's own top
+  comment for a real, previously-undocumented constraint this surfaced: a
+  registered free function's return value (`geoml.translate`, not a
+  constructor/member-function call) needs an explicit `:as(Type)` before a native
+  method can be called on it in the decorated `steps:` environment - the same
+  "no static type information available" limitation `../DESIGN.md`'s "A second,
+  genuine limitation" entry already documents for `modules:` function returns,
+  now confirmed to apply to plugin-registered free functions too.
 - `run_example.py` - a small, self-contained example script using grunk's Python
   bindings, adapted from `grunk-occt`'s own script of the same name - loads *both*
   `occt_plugin` and `geoml_plugin` (unlike grunk-occt's own single-plugin version),
   reads each recipe, and checks its `ok` output (`occt.export_brep`'s own return
-  value).
+  value). Takes an optional third argument, `adolc_plugin.so`, to additionally
+  enable `ad_translate.grr.yml`'s own derivative check (same
+  `has_ad`/finite-difference pattern as `grunk-occt`'s own script).
 - `geoml_smoke.grr.yml` - **not** one of the examples above; a minimal fixture
   created for `tests/test_recipe.cpp`, not meant to demonstrate anything on its own.
 
@@ -105,4 +125,13 @@ repo's `examples/README.md` for how to get them if `import grunk` fails.
 Each run writes a `.brep` file (`load_carrier.brep`, `wing_loft.brep`,
 `airplane_seats.brep`, `gasturbine_cavity_update.brep`) into the current working
 directory - open any of them in a CAD viewer that reads BREP (e.g. FreeCAD) to
-inspect the result.
+inspect the result. `ad_translate.grr.yml` writes no file (its outputs are plain
+numbers, not a shape).
+
+To also run `ad_translate.grr.yml`'s AD derivative check:
+
+```
+cd ../grunk-occt && pixi run -e ad build  # occt_plugin.so + adolc_plugin.so
+cd ../grunk-geoml && pixi run -e ad build # geoml_plugin.so (AD-enabled)
+pixi run -e ad run_examples
+```

@@ -187,7 +187,13 @@ test = { cmd = "ctest --test-dir build-ad --output-on-failure", depends-on = ["b
 
 install = { cmd = "cmake --install build-ad", depends-on = ["build"], description = "Install geoml_plugin and adolc_plugin into build-ad/install." }
 
-run_examples = { cmd = "python examples/run_example.py build-ad/libgeoml_plugin.so build-ad/_deps/grunk-adolc-build/libadolc_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (not added yet - see DESIGN.md), including the AD derivative check." }
+# occt_plugin/adolc_plugin are grunk-occt's own [feature.ad] build output (a
+# sibling repo - see examples/run_example.py's own top comment), not built by this
+# repo: `cd ../grunk-occt && pixi run -e ad build` first. Previously passed
+# libadolc_plugin.so as run_example.py's second (occt_plugin) argument by mistake,
+# which is why this task was never actually runnable - fixed now that
+# run_example.py takes a real, separate, optional third argument for it.
+run_examples = { cmd = "python examples/run_example.py build-ad/libgeoml_plugin.so ../grunk-occt/build-ad/libocct_plugin.so ../grunk-occt/build-ad/_deps/grunk-adolc-build/libadolc_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/, including the AD derivative check (requires grunk-occt already built with -e ad as a sibling repo)." }
 
 [feature.ad.tasks.all]
 depends-on = ["configure", "build", "test", "run_examples"]

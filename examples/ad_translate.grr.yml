@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Recipe-level AD check: a Standard_Real seeded via adolc.adouble (identical
+# convention to grunk-occt's own examples/bspline_curve.grr.yml) is built into a
+# point with occt.gp_Pnt.new, crosses the plugin boundary into geoml.translate
+# (generated/transformations.cpp's own dual-emission overload -
+# tests/test_ad.cpp's GeomlAdTest.TranslateDerivativeMatchesClosedForm already
+# verifies this exact function/closed form directly in C++, with no recipe/Lua
+# layer involved), and the result's own gp_Pnt accessors are read back through
+# occt.* - proving AD values actually propagate correctly through BOTH plugins at
+# the real recipe level, not just via a direct C++ call into one generated
+# function.
+#
+# `moved` needs an explicit `:as(occt.gp_Pnt)` before its own `:X()`/`:Y()`/`:Z()`
+# can be called - the same "no static type information available" constraint
+# DESIGN.md's "A second, genuine limitation" entry already documents for
+# `modules:` function returns turns out to apply identically to a *registered*
+# free function (`geoml.translate`, via `ns.register_function`, not a
+# constructor/member-function call) in this decorated `steps:` environment.
+# Unlike that entry's own `geoml::Shape`-specific `:as()` segfault, `gp_Pnt` is a
+# plain, already-registered occt type with no such sharp edge, so `:as()` is the
+# right fix here (confirmed empirically, not assumed).
+#
+# Only meaningful against AD-enabled builds of all three plugins involved
+# (occt_plugin/adolc_plugin from grunk-occt's own [feature.ad], geoml_plugin from
+# this repo's own [feature.ad]). Against stock (non-AD) plugins, `adolc` is nil
+# and this recipe degrades to a primal-only check - same me.seed_point/
+# primal_value/ad_derivative convention as bspline_curve.grr.yml, so it still runs
+# (and still exercises the occt.*/geoml.* mix) under `pixi run -e default
+# run_examples`, just without a derivative to check.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+modules:
+  me: |
+    function seed_point(x, y, z)
+        if adolc ~= nil then
+            local xa = adolc.adouble.new(x)
+            xa:setADValue(0, 1.0)
+            return occt.gp_Pnt.new(xa, y, z)
+        end
+        return occt.gp_Pnt.new(x, y, z)
+    end
+
+    function primal_value(v)
+        if adolc ~= nil then
+            return v:getValue()
+        end
+        return v
+    end
+
+    function ad_derivative(v)
+        if adolc ~= nil then
+            return v:getADValue(0)
+        end
+        return 0.0
+    end
+parameters:
+  p_x: 1.0
+  p_y: 0.0
+  p_z: 0.0
+steps: |
+  p = me.seed_point(p_x, p_y, p_z)
+  dir = occt.gp_Vec.new(2.0, 3.0, 0.0)
+
+  moved = geoml.translate(p, dir):as(occt.gp_Pnt)
+
+  moved_x_value = me.primal_value(moved:X())
+  moved_y_value = me.primal_value(moved:Y())
+  moved_z_value = me.primal_value(moved:Z())
+
+  moved_x_deriv = me.ad_derivative(moved:X())
+  moved_y_deriv = me.ad_derivative(moved:Y())
+  moved_z_deriv = me.ad_derivative(moved:Z())
+outputs:
+  moved_x_value: moved_x_value
+  moved_y_value: moved_y_value
+  moved_z_value: moved_z_value
+  moved_x_deriv: moved_x_deriv
+  moved_y_deriv: moved_y_deriv
+  moved_z_deriv: moved_z_deriv
