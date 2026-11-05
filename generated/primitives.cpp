@@ -44,12 +44,25 @@ using namespace geoml;
 
 #include <memory>
 
+#include "../src/geoml_ad_support.hpp"
 
 
 
 void register_primitives(grunk::plugin_namespace& ns)
 {
 
-    ns.register_function("create_cylinder", [](double radius, double height) -> Shape { return geoml::create_cylinder(radius, height); });
-    ns.register_function("create_box", [](double dx, double dy, double dz) -> Shape { return geoml::create_box(dx, dy, dz); });
+    ns.register_function("create_cylinder", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object radius, sol::object height) -> Shape { return geoml::create_cylinder(geoml_plugin::to_real(radius), geoml_plugin::to_real(height)); }
+#else
+            [](Standard_Real radius, Standard_Real height) -> Shape { return geoml::create_cylinder(radius, height); }
+#endif
+        );
+    ns.register_function("create_box", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object dx, sol::object dy, sol::object dz) -> Shape { return geoml::create_box(geoml_plugin::to_real(dx), geoml_plugin::to_real(dy), geoml_plugin::to_real(dz)); }
+#else
+            [](Standard_Real dx, Standard_Real dy, Standard_Real dz) -> Shape { return geoml::create_box(dx, dy, dz); }
+#endif
+        );
 }

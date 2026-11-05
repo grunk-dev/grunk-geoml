@@ -55,6 +55,50 @@ cd geoml-autodiff
 git fetch origin "$GEOML_REV"
 git checkout "$GEOML_REV"
 
+# Same OCCT-7.9-compatibility gap as the stock build (scripts/install_geoml.cmake's
+# own identical patch application, see its own comment for the full list of fixes
+# and why) - geoml's `feature/autodiff` branch shares the same pre-7.9 source for
+# the handful of files this patch touches, confirmed by applying cleanly here too.
+# Not AD-specific at all; adOCCT is itself OCCT 7.9-based, so the exact same
+# HashCode(int)/math_Vector/Standard_values.h/*.hpp-install-rule issues reproduce
+# building against it. --reverse --check is a read-only probe (see git-apply(1)),
+# keeping this idempotent against an already-patched checkout the same way the
+# rest of this script is against an already-installed prefix.
+if ! git apply --reverse --check "$ROOT/scripts/geoml-occt79-compat.patch" 2>/dev/null; then
+    git apply "$ROOT/scripts/geoml-occt79-compat.patch"
+fi
+
+# A second, genuinely AD-specific compatibility gap on top of the one above - found
+# building this branch for real, for the first time, against the adOCCT/ADOL-C
+# versions this project pins:
+#   - src/common/ad_utility_function.h's own getPrimal<double>/getPrimal<Standard_Real>/
+#     getPrimal<adtl::adouble> explicit specializations collide (an ODR/redefinition
+#     error) with adOCCT's own Standard_Real.hxx, which now provides an equivalent
+#     generic getPrimal<T>(x) { return x.getValue(); } template itself - geoml's own
+#     branch predates adOCCT gaining this. Guarded out when building against an
+#     AD-enabled adOCCT (GEOML_ADOLC_FORWARD/GEOML_ADOLC_REVERSE), relying on
+#     adOCCT's own copy instead.
+#   - src/common/CommonFunctions.cpp's GetNearestFace stored a running minimum
+#     distance in a plain `float`, static_cast from Standard_Real - under AD,
+#     Standard_Real is Standard_Adouble (ADOL-C's adtl::adouble), which has no
+#     narrowing conversion to float at all. Switched to a plain Standard_Real
+#     (the natural type for a value that's only ever compared against another
+#     Standard_Real, never consumed as output) - no cast needed, works unchanged
+#     for both the AD and non-AD build.
+#   - src/math/MathFunctions.cpp's pow_deriv did `int(k)` directly on a
+#     Standard_Real to check whether an exponent is (close to) a natural number -
+#     adtl::adouble has no int conversion operator at all. This check is a
+#     discrete, value-only branch condition (not something that needs to carry a
+#     derivative itself), so it now extracts the primal value via getPrimal(k)
+#     first, the same utility used throughout this branch for exactly this
+#     purpose - the file didn't already include that header, now does.
+# Worth reporting upstream to DLR-SC/geoml directly (these are real gaps in
+# `feature/autodiff`'s own AD-portability, not anything specific to this plugin);
+# not yet done - see DESIGN.md.
+if ! git apply --reverse --check "$ROOT/scripts/geoml-ad-occt79-compat.patch" 2>/dev/null; then
+    git apply "$ROOT/scripts/geoml-ad-occt79-compat.patch"
+fi
+
 mkdir -p build && cd build
 # PKG_CONFIG_PATH (a process environment variable, not a CMake cache variable) is
 # what geoml's own cmake/UseADOLC.cmake pkg_check_modules(ADOLC ...) call needs to

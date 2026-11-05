@@ -47,6 +47,7 @@ using namespace geoml;
 
 #include <memory>
 
+#include "../src/geoml_ad_support.hpp"
 
 using geoml::CurveIntersectionResult;
 using geoml::MathFunc1d;
@@ -58,150 +59,546 @@ void register_internal_math(grunk::plugin_namespace& ns)
 {
     ns.register_type<CurveIntersectionResult, sol::automagic_flags::none>("CurveIntersectionResult");
     ns.register_type<MathFunc1d, sol::automagic_flags::none>("MathFunc1d")
-        .add_member_function("value", [](MathFunc1d& self, double t) -> double { return self.value(t); });
+        .add_member_function("value", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc1d& self, sol::object t) -> Standard_Real { return self.value(geoml_plugin::to_real(t)); }
+#else
+            [](MathFunc1d& self, Standard_Real t) -> Standard_Real { return self.value(t); }
+#endif
+        );
     ns.register_type<MathFunc3d, sol::automagic_flags::none>("MathFunc3d")
-        .add_member_function("valueX", [](MathFunc3d& self, double t) -> double { return self.valueX(t); })
-        .add_member_function("valueY", [](MathFunc3d& self, double t) -> double { return self.valueY(t); })
-        .add_member_function("valueZ", [](MathFunc3d& self, double t) -> double { return self.valueZ(t); });
+        .add_member_function("valueX", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d& self, sol::object t) -> Standard_Real { return self.valueX(geoml_plugin::to_real(t)); }
+#else
+            [](MathFunc3d& self, Standard_Real t) -> Standard_Real { return self.valueX(t); }
+#endif
+        )
+        .add_member_function("valueY", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d& self, sol::object t) -> Standard_Real { return self.valueY(geoml_plugin::to_real(t)); }
+#else
+            [](MathFunc3d& self, Standard_Real t) -> Standard_Real { return self.valueY(t); }
+#endif
+        )
+        .add_member_function("valueZ", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d& self, sol::object t) -> Standard_Real { return self.valueZ(geoml_plugin::to_real(t)); }
+#else
+            [](MathFunc3d& self, Standard_Real t) -> Standard_Real { return self.valueZ(t); }
+#endif
+        );
     ns.register_type<ValueWithDerivative, sol::automagic_flags::none>("ValueWithDerivative")
         .add_constructors(
             []() { return ValueWithDerivative(); },
-            [](double v, double d) { return ValueWithDerivative(v, d); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object v, sol::object d) { return ValueWithDerivative(geoml_plugin::to_real(v), geoml_plugin::to_real(d)); }
+#else
+            [](Standard_Real v, Standard_Real d) { return ValueWithDerivative(v, d); }
+#endif
+        
         )
-        .add_member_function("value", [](ValueWithDerivative const& self) -> const double { return self.value(); })
-        .add_member_function("derivative", [](ValueWithDerivative const& self) -> const double { return self.derivative(); });
+        .add_member_function("value", [](ValueWithDerivative const& self) -> const Standard_Real { return self.value(); })
+        .add_member_function("derivative", [](ValueWithDerivative const& self) -> const Standard_Real { return self.derivative(); });
     ns.register_type<ProjectPointOnCurveAtAngle, sol::automagic_flags::none>("ProjectPointOnCurveAtAngle")
         .add_constructors(
-            [](const gp_Pnt & p, opencascade::handle<Geom_Curve> curve, double angle, const gp_Dir & planeRefNormal) { return ProjectPointOnCurveAtAngle(p, curve, angle, planeRefNormal); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const gp_Pnt & p, opencascade::handle<Geom_Curve> curve, sol::object angle, const gp_Dir & planeRefNormal) { return ProjectPointOnCurveAtAngle(p, curve, geoml_plugin::to_real(angle), planeRefNormal); }
+#else
+            [](const gp_Pnt & p, opencascade::handle<Geom_Curve> curve, Standard_Real angle, const gp_Dir & planeRefNormal) { return ProjectPointOnCurveAtAngle(p, curve, angle, planeRefNormal); }
+#endif
+        
         )
         .add_member_function("IsDone", [](ProjectPointOnCurveAtAngle const& self) -> bool { return self.IsDone(); })
         .add_member_function("Point", [](ProjectPointOnCurveAtAngle const& self, int i) -> gp_Pnt { return self.Point(i); })
-        .add_member_function("Parameter", [](ProjectPointOnCurveAtAngle const& self, int i) -> double { return self.Parameter(i); })
+        .add_member_function("Parameter", [](ProjectPointOnCurveAtAngle const& self, int i) -> Standard_Real { return self.Parameter(i); })
         .add_member_function("NbPoints", [](ProjectPointOnCurveAtAngle const& self) -> int { return self.NbPoints(); });
     ns.register_function("IntersectBSplines", sol::overload(
         [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, sol::object tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, geoml_plugin::to_real(tolerance)); }
+#else
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, Standard_Real tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+#endif
+        
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
-    ns.register_function("pow_int", [](double x, int n) -> double { return geoml::pow_int(x, n); });
-    ns.register_function("bernstein_poly", [](int i, int n, double x) -> double { return geoml::bernstein_poly(i, n, x); });
-    ns.register_function("bernstein_poly_deriv", [](int k, int i, int n, double x) -> double { return geoml::bernstein_poly_deriv(k, i, n, x); });
-    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> double { return geoml::quadrilateral_area(A, B, C, D); });
-    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> double { return geoml::distance_point_from_line(P, X0, DX); });
-    ns.register_function("pow_deriv", [](double x, double k, int n) -> double { return geoml::pow_deriv(x, k, n); });
-    ns.register_function("class_function", [](const double & N1, const double & N2, const double & x) -> double { return geoml::class_function(N1, N2, x); });
-    ns.register_function("class_function_deriv", [](const double & N1, const double & N2, const int & n, const double & x) -> double { return geoml::class_function_deriv(N1, N2, n, x); });
-    ns.register_function("shape_function", [](const std::vector<double> & B, const double & x) -> double { return geoml::shape_function(B, x); });
-    ns.register_function("shape_function_deriv", [](const std::vector<double> & B, const int & n, const double & x) -> double { return geoml::shape_function_deriv(B, n, x); });
-    ns.register_function("cstcurve", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const double & x) -> double { return geoml::cstcurve(N1, N2, B, T, x); });
-    ns.register_function("cstcurve_deriv", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const int & n, const double & x) -> double { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); });
+    ns.register_function("pow_int", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, int n) -> Standard_Real { return geoml::pow_int(geoml_plugin::to_real(x), n); }
+#else
+            [](Standard_Real x, int n) -> Standard_Real { return geoml::pow_int(x, n); }
+#endif
+        );
+    ns.register_function("bernstein_poly", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly(i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly(i, n, x); }
+#endif
+        );
+    ns.register_function("bernstein_poly_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int k, int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int k, int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, x); }
+#endif
+        );
+    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> Standard_Real { return geoml::quadrilateral_area(A, B, C, D); });
+    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> Standard_Real { return geoml::distance_point_from_line(P, X0, DX); });
+    ns.register_function("pow_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, sol::object k, int n) -> Standard_Real { return geoml::pow_deriv(geoml_plugin::to_real(x), geoml_plugin::to_real(k), n); }
+#else
+            [](Standard_Real x, Standard_Real k, int n) -> Standard_Real { return geoml::pow_deriv(x, k, n); }
+#endif
+        );
+    ns.register_function("class_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, sol::object x) -> Standard_Real { return geoml::class_function(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const Standard_Real & x) -> Standard_Real { return geoml::class_function(N1, N2, x); }
+#endif
+        );
+    ns.register_function("class_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const int & n, sol::object x) -> Standard_Real { return geoml::class_function_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::class_function_deriv(N1, N2, n, x); }
+#endif
+        );
+    ns.register_function("shape_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, sol::object x) -> Standard_Real { return geoml::shape_function(B, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const Standard_Real & x) -> Standard_Real { return geoml::shape_function(B, x); }
+#endif
+        );
+    ns.register_function("shape_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, const int & n, sol::object x) -> Standard_Real { return geoml::shape_function_deriv(B, n, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::shape_function_deriv(B, n, x); }
+#endif
+        );
+    ns.register_function("cstcurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, sol::object x) -> Standard_Real { return geoml::cstcurve(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve(N1, N2, B, T, x); }
+#endif
+        );
+    ns.register_function("cstcurve_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, const int & n, sol::object x) -> Standard_Real { return geoml::cstcurve_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); }
+#endif
+        );
     ns.register_function("isNear", sol::overload(
-        [](double a, double b) -> bool { return geoml::isNear(a, b); },
-        [](double a, double b, double epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](Standard_Real a, Standard_Real b) -> bool { return geoml::isNear(a, b); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b, sol::object epsilon) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b), geoml_plugin::to_real(epsilon)); }
+#else
+            [](Standard_Real a, Standard_Real b, Standard_Real epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+#endif
+        
     ));
-    ns.register_function("cheb_approx", [](MathFunc1d & func, int N, double a, double b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); });
+    ns.register_function("cheb_approx", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc1d & func, int N, sol::object a, sol::object b) -> math_Vector { return geoml::cheb_approx(func, N, geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](MathFunc1d & func, int N, Standard_Real a, Standard_Real b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); }
+#endif
+        );
     ns.register_function("cheb_to_monomial", [](int N) -> math_Matrix { return geoml::cheb_to_monomial(N); });
     ns.register_function("monimial_to_bezier", [](int N) -> math_Matrix { return geoml::monimial_to_bezier(N); });
     ns.register_function("PolarDecomposition", [](const Matrix & A, Matrix & U, Matrix & P) { geoml::PolarDecomposition(A, U, P); });
     ns.register_function("SVD", [](const Matrix & A, Matrix & U, Matrix & S, Matrix & V) { geoml::SVD(A, U, S, V); });
-    ns.register_function("Interpolate", [](const std::vector<double> & xdata, const std::vector<double> & ydata, double x) -> double { return geoml::Interpolate(xdata, ydata, x); });
+    ns.register_function("Interpolate", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, sol::object x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, Standard_Real x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, x); }
+#endif
+        );
     ns.register_function("writeMatrix", [](const Matrix & x, const std::string & filename) { geoml::writeMatrix(x, filename); });
     ns.register_function("readMatrix", [](const std::string & filename) -> Matrix { return geoml::readMatrix(filename); });
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
         [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, sol::object tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, geoml_plugin::to_real(tolerance)); }
+#else
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, Standard_Real tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+#endif
+        
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
-    ns.register_function("pow_int", [](double x, int n) -> double { return geoml::pow_int(x, n); });
-    ns.register_function("bernstein_poly", [](int i, int n, double x) -> double { return geoml::bernstein_poly(i, n, x); });
-    ns.register_function("bernstein_poly_deriv", [](int k, int i, int n, double x) -> double { return geoml::bernstein_poly_deriv(k, i, n, x); });
-    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> double { return geoml::quadrilateral_area(A, B, C, D); });
-    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> double { return geoml::distance_point_from_line(P, X0, DX); });
-    ns.register_function("pow_deriv", [](double x, double k, int n) -> double { return geoml::pow_deriv(x, k, n); });
-    ns.register_function("class_function", [](const double & N1, const double & N2, const double & x) -> double { return geoml::class_function(N1, N2, x); });
-    ns.register_function("class_function_deriv", [](const double & N1, const double & N2, const int & n, const double & x) -> double { return geoml::class_function_deriv(N1, N2, n, x); });
-    ns.register_function("shape_function", [](const std::vector<double> & B, const double & x) -> double { return geoml::shape_function(B, x); });
-    ns.register_function("shape_function_deriv", [](const std::vector<double> & B, const int & n, const double & x) -> double { return geoml::shape_function_deriv(B, n, x); });
-    ns.register_function("cstcurve", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const double & x) -> double { return geoml::cstcurve(N1, N2, B, T, x); });
-    ns.register_function("cstcurve_deriv", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const int & n, const double & x) -> double { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); });
+    ns.register_function("pow_int", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, int n) -> Standard_Real { return geoml::pow_int(geoml_plugin::to_real(x), n); }
+#else
+            [](Standard_Real x, int n) -> Standard_Real { return geoml::pow_int(x, n); }
+#endif
+        );
+    ns.register_function("bernstein_poly", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly(i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly(i, n, x); }
+#endif
+        );
+    ns.register_function("bernstein_poly_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int k, int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int k, int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, x); }
+#endif
+        );
+    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> Standard_Real { return geoml::quadrilateral_area(A, B, C, D); });
+    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> Standard_Real { return geoml::distance_point_from_line(P, X0, DX); });
+    ns.register_function("pow_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, sol::object k, int n) -> Standard_Real { return geoml::pow_deriv(geoml_plugin::to_real(x), geoml_plugin::to_real(k), n); }
+#else
+            [](Standard_Real x, Standard_Real k, int n) -> Standard_Real { return geoml::pow_deriv(x, k, n); }
+#endif
+        );
+    ns.register_function("class_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, sol::object x) -> Standard_Real { return geoml::class_function(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const Standard_Real & x) -> Standard_Real { return geoml::class_function(N1, N2, x); }
+#endif
+        );
+    ns.register_function("class_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const int & n, sol::object x) -> Standard_Real { return geoml::class_function_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::class_function_deriv(N1, N2, n, x); }
+#endif
+        );
+    ns.register_function("shape_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, sol::object x) -> Standard_Real { return geoml::shape_function(B, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const Standard_Real & x) -> Standard_Real { return geoml::shape_function(B, x); }
+#endif
+        );
+    ns.register_function("shape_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, const int & n, sol::object x) -> Standard_Real { return geoml::shape_function_deriv(B, n, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::shape_function_deriv(B, n, x); }
+#endif
+        );
+    ns.register_function("cstcurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, sol::object x) -> Standard_Real { return geoml::cstcurve(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve(N1, N2, B, T, x); }
+#endif
+        );
+    ns.register_function("cstcurve_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, const int & n, sol::object x) -> Standard_Real { return geoml::cstcurve_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); }
+#endif
+        );
     ns.register_function("isNear", sol::overload(
-        [](double a, double b) -> bool { return geoml::isNear(a, b); },
-        [](double a, double b, double epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](Standard_Real a, Standard_Real b) -> bool { return geoml::isNear(a, b); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b, sol::object epsilon) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b), geoml_plugin::to_real(epsilon)); }
+#else
+            [](Standard_Real a, Standard_Real b, Standard_Real epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+#endif
+        
     ));
-    ns.register_function("cheb_approx", [](MathFunc1d & func, int N, double a, double b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); });
+    ns.register_function("cheb_approx", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc1d & func, int N, sol::object a, sol::object b) -> math_Vector { return geoml::cheb_approx(func, N, geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](MathFunc1d & func, int N, Standard_Real a, Standard_Real b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); }
+#endif
+        );
     ns.register_function("cheb_to_monomial", [](int N) -> math_Matrix { return geoml::cheb_to_monomial(N); });
     ns.register_function("monimial_to_bezier", [](int N) -> math_Matrix { return geoml::monimial_to_bezier(N); });
     ns.register_function("PolarDecomposition", [](const Matrix & A, Matrix & U, Matrix & P) { geoml::PolarDecomposition(A, U, P); });
     ns.register_function("SVD", [](const Matrix & A, Matrix & U, Matrix & S, Matrix & V) { geoml::SVD(A, U, S, V); });
-    ns.register_function("Interpolate", [](const std::vector<double> & xdata, const std::vector<double> & ydata, double x) -> double { return geoml::Interpolate(xdata, ydata, x); });
+    ns.register_function("Interpolate", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, sol::object x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, Standard_Real x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, x); }
+#endif
+        );
     ns.register_function("writeMatrix", [](const Matrix & x, const std::string & filename) { geoml::writeMatrix(x, filename); });
     ns.register_function("readMatrix", [](const std::string & filename) -> Matrix { return geoml::readMatrix(filename); });
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
         [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, sol::object tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, geoml_plugin::to_real(tolerance)); }
+#else
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, Standard_Real tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+#endif
+        
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
-    ns.register_function("pow_int", [](double x, int n) -> double { return geoml::pow_int(x, n); });
-    ns.register_function("bernstein_poly", [](int i, int n, double x) -> double { return geoml::bernstein_poly(i, n, x); });
-    ns.register_function("bernstein_poly_deriv", [](int k, int i, int n, double x) -> double { return geoml::bernstein_poly_deriv(k, i, n, x); });
-    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> double { return geoml::quadrilateral_area(A, B, C, D); });
-    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> double { return geoml::distance_point_from_line(P, X0, DX); });
-    ns.register_function("pow_deriv", [](double x, double k, int n) -> double { return geoml::pow_deriv(x, k, n); });
-    ns.register_function("class_function", [](const double & N1, const double & N2, const double & x) -> double { return geoml::class_function(N1, N2, x); });
-    ns.register_function("class_function_deriv", [](const double & N1, const double & N2, const int & n, const double & x) -> double { return geoml::class_function_deriv(N1, N2, n, x); });
-    ns.register_function("shape_function", [](const std::vector<double> & B, const double & x) -> double { return geoml::shape_function(B, x); });
-    ns.register_function("shape_function_deriv", [](const std::vector<double> & B, const int & n, const double & x) -> double { return geoml::shape_function_deriv(B, n, x); });
-    ns.register_function("cstcurve", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const double & x) -> double { return geoml::cstcurve(N1, N2, B, T, x); });
-    ns.register_function("cstcurve_deriv", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const int & n, const double & x) -> double { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); });
+    ns.register_function("pow_int", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, int n) -> Standard_Real { return geoml::pow_int(geoml_plugin::to_real(x), n); }
+#else
+            [](Standard_Real x, int n) -> Standard_Real { return geoml::pow_int(x, n); }
+#endif
+        );
+    ns.register_function("bernstein_poly", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly(i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly(i, n, x); }
+#endif
+        );
+    ns.register_function("bernstein_poly_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int k, int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int k, int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, x); }
+#endif
+        );
+    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> Standard_Real { return geoml::quadrilateral_area(A, B, C, D); });
+    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> Standard_Real { return geoml::distance_point_from_line(P, X0, DX); });
+    ns.register_function("pow_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, sol::object k, int n) -> Standard_Real { return geoml::pow_deriv(geoml_plugin::to_real(x), geoml_plugin::to_real(k), n); }
+#else
+            [](Standard_Real x, Standard_Real k, int n) -> Standard_Real { return geoml::pow_deriv(x, k, n); }
+#endif
+        );
+    ns.register_function("class_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, sol::object x) -> Standard_Real { return geoml::class_function(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const Standard_Real & x) -> Standard_Real { return geoml::class_function(N1, N2, x); }
+#endif
+        );
+    ns.register_function("class_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const int & n, sol::object x) -> Standard_Real { return geoml::class_function_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::class_function_deriv(N1, N2, n, x); }
+#endif
+        );
+    ns.register_function("shape_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, sol::object x) -> Standard_Real { return geoml::shape_function(B, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const Standard_Real & x) -> Standard_Real { return geoml::shape_function(B, x); }
+#endif
+        );
+    ns.register_function("shape_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, const int & n, sol::object x) -> Standard_Real { return geoml::shape_function_deriv(B, n, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::shape_function_deriv(B, n, x); }
+#endif
+        );
+    ns.register_function("cstcurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, sol::object x) -> Standard_Real { return geoml::cstcurve(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve(N1, N2, B, T, x); }
+#endif
+        );
+    ns.register_function("cstcurve_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, const int & n, sol::object x) -> Standard_Real { return geoml::cstcurve_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); }
+#endif
+        );
     ns.register_function("isNear", sol::overload(
-        [](double a, double b) -> bool { return geoml::isNear(a, b); },
-        [](double a, double b, double epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](Standard_Real a, Standard_Real b) -> bool { return geoml::isNear(a, b); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b, sol::object epsilon) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b), geoml_plugin::to_real(epsilon)); }
+#else
+            [](Standard_Real a, Standard_Real b, Standard_Real epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+#endif
+        
     ));
-    ns.register_function("cheb_approx", [](MathFunc1d & func, int N, double a, double b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); });
+    ns.register_function("cheb_approx", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc1d & func, int N, sol::object a, sol::object b) -> math_Vector { return geoml::cheb_approx(func, N, geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](MathFunc1d & func, int N, Standard_Real a, Standard_Real b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); }
+#endif
+        );
     ns.register_function("cheb_to_monomial", [](int N) -> math_Matrix { return geoml::cheb_to_monomial(N); });
     ns.register_function("monimial_to_bezier", [](int N) -> math_Matrix { return geoml::monimial_to_bezier(N); });
     ns.register_function("PolarDecomposition", [](const Matrix & A, Matrix & U, Matrix & P) { geoml::PolarDecomposition(A, U, P); });
     ns.register_function("SVD", [](const Matrix & A, Matrix & U, Matrix & S, Matrix & V) { geoml::SVD(A, U, S, V); });
-    ns.register_function("Interpolate", [](const std::vector<double> & xdata, const std::vector<double> & ydata, double x) -> double { return geoml::Interpolate(xdata, ydata, x); });
+    ns.register_function("Interpolate", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, sol::object x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, Standard_Real x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, x); }
+#endif
+        );
     ns.register_function("writeMatrix", [](const Matrix & x, const std::string & filename) { geoml::writeMatrix(x, filename); });
     ns.register_function("readMatrix", [](const std::string & filename) -> Matrix { return geoml::readMatrix(filename); });
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });
     ns.register_function("normalize", [](gp_Vec & v, gp_Vec & v_deriv) { geoml::normalize(v, v_deriv); });
     ns.register_function("IntersectBSplines", sol::overload(
         [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2); },
-        [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, double tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, sol::object tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, geoml_plugin::to_real(tolerance)); }
+#else
+            [](opencascade::handle<Geom_BSplineCurve> curve1, opencascade::handle<Geom_BSplineCurve> curve2, Standard_Real tolerance) -> std::vector<CurveIntersectionResult> { return geoml::IntersectBSplines(curve1, curve2, tolerance); }
+#endif
+        
     ));
     ns.register_function("binom", [](int n, int k) -> int { return geoml::binom(n, k); });
     ns.register_function("factorial", [](int n) -> int { return geoml::factorial(n); });
-    ns.register_function("pow_int", [](double x, int n) -> double { return geoml::pow_int(x, n); });
-    ns.register_function("bernstein_poly", [](int i, int n, double x) -> double { return geoml::bernstein_poly(i, n, x); });
-    ns.register_function("bernstein_poly_deriv", [](int k, int i, int n, double x) -> double { return geoml::bernstein_poly_deriv(k, i, n, x); });
-    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> double { return geoml::quadrilateral_area(A, B, C, D); });
-    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> double { return geoml::distance_point_from_line(P, X0, DX); });
-    ns.register_function("pow_deriv", [](double x, double k, int n) -> double { return geoml::pow_deriv(x, k, n); });
-    ns.register_function("class_function", [](const double & N1, const double & N2, const double & x) -> double { return geoml::class_function(N1, N2, x); });
-    ns.register_function("class_function_deriv", [](const double & N1, const double & N2, const int & n, const double & x) -> double { return geoml::class_function_deriv(N1, N2, n, x); });
-    ns.register_function("shape_function", [](const std::vector<double> & B, const double & x) -> double { return geoml::shape_function(B, x); });
-    ns.register_function("shape_function_deriv", [](const std::vector<double> & B, const int & n, const double & x) -> double { return geoml::shape_function_deriv(B, n, x); });
-    ns.register_function("cstcurve", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const double & x) -> double { return geoml::cstcurve(N1, N2, B, T, x); });
-    ns.register_function("cstcurve_deriv", [](const double & N1, const double & N2, const std::vector<double> & B, const double & T, const int & n, const double & x) -> double { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); });
+    ns.register_function("pow_int", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, int n) -> Standard_Real { return geoml::pow_int(geoml_plugin::to_real(x), n); }
+#else
+            [](Standard_Real x, int n) -> Standard_Real { return geoml::pow_int(x, n); }
+#endif
+        );
+    ns.register_function("bernstein_poly", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly(i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly(i, n, x); }
+#endif
+        );
+    ns.register_function("bernstein_poly_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](int k, int i, int n, sol::object x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, geoml_plugin::to_real(x)); }
+#else
+            [](int k, int i, int n, Standard_Real x) -> Standard_Real { return geoml::bernstein_poly_deriv(k, i, n, x); }
+#endif
+        );
+    ns.register_function("quadrilateral_area", [](const Point & A, const Point & B, const Point & C, const Point & D) -> Standard_Real { return geoml::quadrilateral_area(A, B, C, D); });
+    ns.register_function("distance_point_from_line", [](const Point & P, const Point & X0, const Point & DX) -> Standard_Real { return geoml::distance_point_from_line(P, X0, DX); });
+    ns.register_function("pow_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object x, sol::object k, int n) -> Standard_Real { return geoml::pow_deriv(geoml_plugin::to_real(x), geoml_plugin::to_real(k), n); }
+#else
+            [](Standard_Real x, Standard_Real k, int n) -> Standard_Real { return geoml::pow_deriv(x, k, n); }
+#endif
+        );
+    ns.register_function("class_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, sol::object x) -> Standard_Real { return geoml::class_function(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const Standard_Real & x) -> Standard_Real { return geoml::class_function(N1, N2, x); }
+#endif
+        );
+    ns.register_function("class_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const int & n, sol::object x) -> Standard_Real { return geoml::class_function_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::class_function_deriv(N1, N2, n, x); }
+#endif
+        );
+    ns.register_function("shape_function", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, sol::object x) -> Standard_Real { return geoml::shape_function(B, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const Standard_Real & x) -> Standard_Real { return geoml::shape_function(B, x); }
+#endif
+        );
+    ns.register_function("shape_function_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & B, const int & n, sol::object x) -> Standard_Real { return geoml::shape_function_deriv(B, n, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & B, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::shape_function_deriv(B, n, x); }
+#endif
+        );
+    ns.register_function("cstcurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, sol::object x) -> Standard_Real { return geoml::cstcurve(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve(N1, N2, B, T, x); }
+#endif
+        );
+    ns.register_function("cstcurve_deriv", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object N1, sol::object N2, const std::vector<Standard_Real> & B, sol::object T, const int & n, sol::object x) -> Standard_Real { return geoml::cstcurve_deriv(geoml_plugin::to_real(N1), geoml_plugin::to_real(N2), B, geoml_plugin::to_real(T), n, geoml_plugin::to_real(x)); }
+#else
+            [](const Standard_Real & N1, const Standard_Real & N2, const std::vector<Standard_Real> & B, const Standard_Real & T, const int & n, const Standard_Real & x) -> Standard_Real { return geoml::cstcurve_deriv(N1, N2, B, T, n, x); }
+#endif
+        );
     ns.register_function("isNear", sol::overload(
-        [](double a, double b) -> bool { return geoml::isNear(a, b); },
-        [](double a, double b, double epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](Standard_Real a, Standard_Real b) -> bool { return geoml::isNear(a, b); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object a, sol::object b, sol::object epsilon) -> bool { return geoml::isNear(geoml_plugin::to_real(a), geoml_plugin::to_real(b), geoml_plugin::to_real(epsilon)); }
+#else
+            [](Standard_Real a, Standard_Real b, Standard_Real epsilon) -> bool { return geoml::isNear(a, b, epsilon); }
+#endif
+        
     ));
-    ns.register_function("cheb_approx", [](MathFunc1d & func, int N, double a, double b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); });
+    ns.register_function("cheb_approx", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc1d & func, int N, sol::object a, sol::object b) -> math_Vector { return geoml::cheb_approx(func, N, geoml_plugin::to_real(a), geoml_plugin::to_real(b)); }
+#else
+            [](MathFunc1d & func, int N, Standard_Real a, Standard_Real b) -> math_Vector { return geoml::cheb_approx(func, N, a, b); }
+#endif
+        );
     ns.register_function("cheb_to_monomial", [](int N) -> math_Matrix { return geoml::cheb_to_monomial(N); });
     ns.register_function("monimial_to_bezier", [](int N) -> math_Matrix { return geoml::monimial_to_bezier(N); });
     ns.register_function("PolarDecomposition", [](const Matrix & A, Matrix & U, Matrix & P) { geoml::PolarDecomposition(A, U, P); });
     ns.register_function("SVD", [](const Matrix & A, Matrix & U, Matrix & S, Matrix & V) { geoml::SVD(A, U, S, V); });
-    ns.register_function("Interpolate", [](const std::vector<double> & xdata, const std::vector<double> & ydata, double x) -> double { return geoml::Interpolate(xdata, ydata, x); });
+    ns.register_function("Interpolate", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, sol::object x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, geoml_plugin::to_real(x)); }
+#else
+            [](const std::vector<Standard_Real> & xdata, const std::vector<Standard_Real> & ydata, Standard_Real x) -> Standard_Real { return geoml::Interpolate(xdata, ydata, x); }
+#endif
+        );
     ns.register_function("writeMatrix", [](const Matrix & x, const std::string & filename) { geoml::writeMatrix(x, filename); });
     ns.register_function("readMatrix", [](const std::string & filename) -> Matrix { return geoml::readMatrix(filename); });
     ns.register_function("distancePlanePoint_deriv", [](gp_Dir planeNormal, gp_Vec planeNormal_deriv, gp_Pnt pointOnPlane, gp_Vec pointOnPlane_deriv, gp_Pnt p) -> ValueWithDerivative { return geoml::distancePlanePoint_deriv(planeNormal, planeNormal_deriv, pointOnPlane, pointOnPlane_deriv, p); });

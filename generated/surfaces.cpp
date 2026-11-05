@@ -51,7 +51,13 @@ using namespace geoml;
 void register_surfaces(grunk::plugin_namespace& ns)
 {
 
-    ns.register_function("interpolate_curve_network", [](const std::vector<opencascade::handle<Geom_Curve>> & ucurves, const std::vector<opencascade::handle<Geom_Curve>> & vcurves, double tolerance) -> opencascade::handle<Geom_BSplineSurface> { return geoml::interpolate_curve_network(ucurves, vcurves, tolerance); });
+    ns.register_function("interpolate_curve_network", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & ucurves, const std::vector<opencascade::handle<Geom_Curve>> & vcurves, sol::object tolerance) -> opencascade::handle<Geom_BSplineSurface> { return geoml::interpolate_curve_network(ucurves, vcurves, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & ucurves, const std::vector<opencascade::handle<Geom_Curve>> & vcurves, Standard_Real tolerance) -> opencascade::handle<Geom_BSplineSurface> { return geoml::interpolate_curve_network(ucurves, vcurves, tolerance); }
+#endif
+        );
     ns.register_function("interpolate_curves", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & curves) -> opencascade::handle<Geom_BSplineSurface> { return geoml::interpolate_curves(curves); },
         [](const std::vector<opencascade::handle<Geom_Curve>> & curves, unsigned int max_degree) -> opencascade::handle<Geom_BSplineSurface> { return geoml::interpolate_curves(curves, max_degree); },

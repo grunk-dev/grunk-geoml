@@ -50,6 +50,7 @@ using namespace geoml;
 
 #include <memory>
 
+#include "../src/geoml_ad_support.hpp"
 
 using geoml::BRepBuilderAPI_MakeShape_Operation;
 using geoml::CWireToCurve;
@@ -104,17 +105,47 @@ void register_internal_topology(grunk::plugin_namespace& ns)
         .add_constructors(
             [](const TopoDS_Wire & arg0) { return CWireToCurve(arg0); },
             [](const TopoDS_Wire & arg0, bool parByLength) { return CWireToCurve(arg0, parByLength); },
-            [](const TopoDS_Wire & arg0, bool parByLength, double tolerance) { return CWireToCurve(arg0, parByLength, tolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & arg0, bool parByLength, sol::object tolerance) { return CWireToCurve(arg0, parByLength, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & arg0, bool parByLength, Standard_Real tolerance) { return CWireToCurve(arg0, parByLength, tolerance); }
+#endif
+        
         )
         .add_member_function("curve", [](CWireToCurve& self) -> opencascade::handle<Geom_BSplineCurve> { return self.curve(); });
     ns.register_type<InterpolateWires, sol::automagic_flags::none>("InterpolateWires")
         .add_constructors(
             []() { return InterpolateWires(); },
-            [](double tolerance) { return InterpolateWires(tolerance); },
-            [](double tolerance, double sameKnotTolerance) { return InterpolateWires(tolerance, sameKnotTolerance); },
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object tolerance) { return InterpolateWires(geoml_plugin::to_real(tolerance)); }
+#else
+            [](Standard_Real tolerance) { return InterpolateWires(tolerance); }
+#endif
+        ,
             [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
-            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, double tolerance) { return InterpolateWires(profiles, guides, tolerance); },
-            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, double tolerance, double sameKnotTolerance) { return InterpolateWires(profiles, guides, tolerance, sameKnotTolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object tolerance, sol::object sameKnotTolerance) { return InterpolateWires(geoml_plugin::to_real(tolerance), geoml_plugin::to_real(sameKnotTolerance)); }
+#else
+            [](Standard_Real tolerance, Standard_Real sameKnotTolerance) { return InterpolateWires(tolerance, sameKnotTolerance); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, sol::object tolerance, sol::object sameKnotTolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance), geoml_plugin::to_real(sameKnotTolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, Standard_Real tolerance, Standard_Real sameKnotTolerance) { return InterpolateWires(profiles, guides, tolerance, sameKnotTolerance); }
+#endif
+        
         )
         .add_member_function("addWire", [](InterpolateWires& self, const TopoDS_Shape & profiles) { self.addWire(profiles); })
         .add_member_function("addGuides", [](InterpolateWires& self, const TopoDS_Shape & guides) { self.addGuides(guides); })
@@ -124,7 +155,13 @@ void register_internal_topology(grunk::plugin_namespace& ns)
     ns.register_type<PatchShellTool, sol::automagic_flags::none>("PatchShellTool")
         .add_constructors(
             [](const TopoDS_Shape & shell) { return PatchShellTool(shell); },
-            [](const TopoDS_Shape & shell, double tolerance) { return PatchShellTool(shell, tolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        
         )
         .add_member_function("SetMakeSolid", sol::overload(
             [](PatchShellTool& self) { self.SetMakeSolid(); },
@@ -133,10 +170,10 @@ void register_internal_topology(grunk::plugin_namespace& ns)
         .add_member_function("AddSideCap", [](PatchShellTool& self, const TopoDS_Wire & boundaryWire) { self.AddSideCap(boundaryWire); })
         .add_member_function("PatchedShape", [](PatchShellTool& self) -> TopoDS_Shape { return self.PatchedShape(); });
     ns.register_type<TopoAlgorithms, sol::automagic_flags::none>("TopoAlgorithms");
-    ns.register_function("TopoAlgorithms_CutShellAtUVParameters", [](const TopoDS_Shape & shape, std::vector<double> uparams, std::vector<double> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); });
+    ns.register_function("TopoAlgorithms_CutShellAtUVParameters", [](const TopoDS_Shape & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); });
     ns.register_function("TopoAlgorithms_CutSurfaceAtUVParameters", sol::overload(
-        [](opencascade::handle<Geom_Surface> surface, std::vector<double> uparams, std::vector<double> vparams) -> TopoDS_Shell { return TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams); },
-        [](opencascade::handle<Geom_Surface> surface, std::vector<double> uparams, std::vector<double> vparams, TopoDS_Shell & shell) { TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams, shell); }
+        [](opencascade::handle<Geom_Surface> surface, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shell { return TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams); },
+        [](opencascade::handle<Geom_Surface> surface, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams, TopoDS_Shell & shell) { TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams, shell); }
     ));
     ns.register_function("TopoAlgorithms_CutShellAtKinks", [](const TopoDS_Shape & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); });
     ns.register_function("TopoAlgorithms_CutSurfaceAtKinks", sol::overload(

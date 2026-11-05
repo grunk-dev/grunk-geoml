@@ -149,9 +149,23 @@ class Hooks(generate.CodeGenerator):
     def classify_param(self, param, registered_types, registered_enums):
         # Non-const-reference ("out") parameters ARE supported for a registered
         # object (see Param.kind's own docstring) but NOT for Standard_Real - Lua
-        # has no mutable-number-by-reference concept.
+        # has no mutable-number-by-reference concept. generate.REJECTED, not
+        # None: a bare None here would fall through to Param.kind()'s own
+        # generic "mutable reference to a genuine, stable-identity class" rule,
+        # which genuinely does accept a mutable reference - and Standard_Real's
+        # own *canonical* spelling is build-variant-dependent (a fundamental
+        # `double` for the stock build, but a real class, Standard_Adouble, for
+        # the AD build) - found the hard way regenerating against an AD-enabled
+        # geoml: a mutable Standard_Real& out-parameter (geoml::Point::getMinMax)
+        # was silently accepted via that fallback (Standard_Adouble, a genuine
+        # class, satisfies it) and baked as a literal, non-#ifdef-gated
+        # `Standard_Real&` parameter into the *shared* generated/*.cpp - which
+        # then failed to even compile for the stock build, where that same
+        # parameter resolves to `double&` and sol2 cannot bind a mutable
+        # reference to a fundamental-type argument at all. Explicitly rejecting
+        # here, regardless of which build generated it, keeps this symmetric.
         if param.base == STANDARD_REAL:
-            return None if param.is_mutable_ref else "real"
+            return generate.REJECTED if param.is_mutable_ref else "real"
         if param.base in OCCT_TYPEDEF_PASSTHROUGH:
             return None if param.is_mutable_ref else "passthrough"
         # std::vector<Handle(X)> - the one std::vector<T> shape core's own built-in

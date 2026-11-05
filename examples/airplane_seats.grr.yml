@@ -114,12 +114,12 @@ recipes:
 
         function fillet_at(shape, radius, ...)
           local edges = edges_at(shape, ...)
-          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius)
         end
 
         function fillet_face_at(shape, radius, face_index)
           local face = geoml.nth_face(shape, face_index)
-          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius):shape()
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius)
         end
 
         function make_rotation_trsf(ax, angle)
@@ -169,7 +169,7 @@ recipes:
 
             function fillet_at(shape, radius, ...)
               local edges = edges_at(shape, ...)
-              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius)
             end
         steps: |
           seat_fillet_radius_frontback = h_cushion / 2.05
@@ -182,11 +182,11 @@ recipes:
 
           -- f1: round the front-top and front-bottom edges (both at x=0, the
           -- end facing away from the backrest - edges 1/3 on the raw box).
-          f1 = helpers.fillet_at(seat_box, seat_fillet_radius_frontback, f1_i1, f1_i3)
+          f1 = helpers.fillet_at(seat_box, seat_fillet_radius_frontback, f1_i1, f1_i3):as(geoml.Shape)
 
           -- seat_cushion: round the left and right edges of the now-rounded
           -- front (edges 0/3 on f1's own result, not the raw box anymore).
-          seat_cushion = helpers.fillet_at(f1, seat_fillet_radius_leftright, 0, 3)
+          seat_cushion = helpers.fillet_at(f1.shape(), seat_fillet_radius_leftright, 0, 3)
         outputs:
           seat_cushion: seat_cushion
           h_sitting_surface: h_sitting_surface
@@ -238,12 +238,12 @@ recipes:
 
             function fillet_at(shape, radius, ...)
               local edges = edges_at(shape, ...)
-              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius)
             end
 
             function fillet_face_at(shape, radius, face_index)
               local face = geoml.nth_face(shape, face_index)
-              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius):shape()
+              return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(face), radius)
             end
 
             function make_rotation_trsf(ax, angle)
@@ -259,10 +259,10 @@ recipes:
           backrest_box = occt.BRepPrimAPI_MakeBox.new(backrest_pos, dx_back, w_sitting_surface, h_back):Shape()
 
           -- f3: round the top-left and top-right edges (9/11 on the raw box).
-          f3 = helpers.fillet_at(backrest_box, backrest_radius_leftright, 9, 11)
+          f3 = helpers.fillet_at(backrest_box, backrest_radius_leftright, 9, 11):as(geoml.Shape)
           -- backrest: round the back-top edge (6 on f3's own result), where
           -- the back face meets the now-rounded top.
-          backrest = helpers.fillet_at(f3, backrest_radius_top, 6)
+          backrest = helpers.fillet_at(f3.shape(), backrest_radius_top, 6):as(geoml.Shape)
 
           -- headrest: a small box sunk into the top of the backrest.
           headrest_posx = l_cushion - t_headrest
@@ -272,11 +272,11 @@ recipes:
           headrest_box = occt.BRepPrimAPI_MakeBox.new(headrest_pos, t_headrest, headrest_width, h_headrest):Shape()
 
           -- f5: round the 4 side edges (8/9/10/11 on the raw box).
-          f5 = helpers.fillet_at(headrest_box, headrest_radius, 8, 9, 10, 11)
+          f5 = helpers.fillet_at(headrest_box, headrest_radius, 8, 9, 10, 11):as(geoml.Shape)
           -- headrest: round the perimeter of the front face (0 on f5's own result).
-          headrest = helpers.fillet_face_at(f5, headrest_radius2, 0)
+          headrest = helpers.fillet_face_at(f5.shape(), headrest_radius2, 0):as(geoml.Shape)
 
-          back = helpers.make_compound(backrest, headrest)
+          back = helpers.make_compound(backrest.shape(), headrest.shape())
 
           -- Recline the whole backrest+headrest compound about the seat's own
           -- top-back edge.
@@ -296,7 +296,7 @@ recipes:
       cushion_caller["h_sitting_surface"] = h_sitting_surface
       cushion_caller["h_cushion"] = h_cushion
       cushion_caller["l_cushion"] = l_cushion
-      seat_cushion = cushion_caller:get("seat_cushion")
+      seat_cushion = cushion_caller:get("seat_cushion"):as(geoml.Shape)
 
       back_caller = recipes.backrest()
       back_caller["w_sitting_surface"] = w_sitting_surface
@@ -307,7 +307,7 @@ recipes:
       back_caller["phi_recline"] = phi_recline
       backrest_reclined = back_caller:get("backrest_reclined")
 
-      single_seat = helpers.make_compound(seat_cushion, backrest_reclined)
+      single_seat = helpers.make_compound(seat_cushion.shape(), backrest_reclined)
     outputs:
       single_seat: single_seat
       h_sitting_surface: h_sitting_surface
@@ -355,7 +355,7 @@ recipes:
 
         function fillet_at(shape, radius, ...)
           local edges = edges_at(shape, ...)
-          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius):shape()
+          return geoml.make_fillet(geoml.Shape.new(shape), geoml.Shape.new(edges), radius)
         end
     steps: |
       l_armrest = 0.75 * l_cushion
@@ -367,7 +367,7 @@ recipes:
 
       -- armrest_nobop: round the back-top edge (1 on the raw box) - the edge
       -- the armrest curves down from towards the reclined backrest.
-      armrest_nobop = helpers.fillet_at(armrest_box, armrest_radius, 1)
+      armrest_nobop = helpers.fillet_at(armrest_box, armrest_radius, 1):as(geoml.Shape)
 
       -- Cut away everything on the far side of the reclined backrest's own
       -- plane, so the armrest's own back end follows the recline angle.
@@ -380,7 +380,7 @@ recipes:
       face = occt.BRepBuilderAPI_MakeFace.new(pln, 0.0, 1.0, 0.0, 1.0):Face()
       pnt = pln_pnt:Translated(occt.gp_Vec.new(dir_x, 0.0, dir_z))
       halfspace = occt.BRepPrimAPI_MakeHalfSpace.new(face, pnt):Solid()
-      armrest = occt.BRepAlgoAPI_Cut.new(armrest_nobop, halfspace):Shape()
+      armrest = occt.BRepAlgoAPI_Cut.new(armrest_nobop.shape(), halfspace):Shape()
     outputs:
       armrest: armrest
   support:

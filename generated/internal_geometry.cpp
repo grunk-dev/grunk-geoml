@@ -64,8 +64,7 @@ using namespace geoml;
 
 #include <memory>
 
-#include "../src/collections.hpp"
-#include <vector>
+#include "../src/geoml_ad_support.hpp"
 
 using geoml::ApproxResult;
 using geoml::BSplineAlgorithms;
@@ -95,15 +94,33 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         )
         .add_member_function("init", sol::overload(
             [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve) { self.init(curve); },
-            [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve, double accuracy) { self.init(curve, accuracy); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve, sol::object accuracy) { self.init(curve, geoml_plugin::to_real(accuracy)); }
+#else
+            [](ReparametrizeCurveByArclen& self, opencascade::handle<Geom_BSplineCurve> curve, Standard_Real accuracy) { self.init(curve, accuracy); }
+#endif
+        
         ))
         .add_member_function("isInitialized", [](ReparametrizeCurveByArclen const& self) -> bool { return self.isInitialized(); })
-        .add_member_function("parameter", [](ReparametrizeCurveByArclen const& self, double arcLength) -> double { return self.parameter(arcLength); })
-        .add_member_function("totalLength", [](ReparametrizeCurveByArclen const& self) -> double { return self.totalLength(); });
+        .add_member_function("parameter", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](ReparametrizeCurveByArclen const& self, sol::object arcLength) -> Standard_Real { return self.parameter(geoml_plugin::to_real(arcLength)); }
+#else
+            [](ReparametrizeCurveByArclen const& self, Standard_Real arcLength) -> Standard_Real { return self.parameter(arcLength); }
+#endif
+        )
+        .add_member_function("totalLength", [](ReparametrizeCurveByArclen const& self) -> Standard_Real { return self.totalLength(); });
     ns.register_type<BSplineAlgorithms, sol::automagic_flags::none>("BSplineAlgorithms");
     ns.register_type<ProjectResult, sol::automagic_flags::none>("ProjectResult")
         .add_constructors(
-            [](double p, double e) { return ProjectResult(p, e); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object p, sol::object e) { return ProjectResult(geoml_plugin::to_real(p), geoml_plugin::to_real(e)); }
+#else
+            [](Standard_Real p, Standard_Real e) { return ProjectResult(p, e); }
+#endif
+        
         );
     ns.register_type<BSplineApproxInterp, sol::automagic_flags::none>("BSplineApproxInterp")
         .add_constructors(
@@ -117,27 +134,45 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         ))
         .add_member_function("FitCurve", sol::overload(
             [](BSplineApproxInterp const& self) -> ApproxResult { return self.FitCurve(); },
-            [](BSplineApproxInterp const& self, const std::vector<double> & initialParms) -> ApproxResult { return self.FitCurve(initialParms); }
+            [](BSplineApproxInterp const& self, const std::vector<Standard_Real> & initialParms) -> ApproxResult { return self.FitCurve(initialParms); }
         ))
         .add_member_function("FitCurveOptimal", sol::overload(
             [](BSplineApproxInterp const& self) -> ApproxResult { return self.FitCurveOptimal(); },
-            [](BSplineApproxInterp const& self, const std::vector<double> & initialParms) -> ApproxResult { return self.FitCurveOptimal(initialParms); },
-            [](BSplineApproxInterp const& self, const std::vector<double> & initialParms, int maxIter) -> ApproxResult { return self.FitCurveOptimal(initialParms, maxIter); }
+            [](BSplineApproxInterp const& self, const std::vector<Standard_Real> & initialParms) -> ApproxResult { return self.FitCurveOptimal(initialParms); },
+            [](BSplineApproxInterp const& self, const std::vector<Standard_Real> & initialParms, int maxIter) -> ApproxResult { return self.FitCurveOptimal(initialParms, maxIter); }
         ));
     ns.register_type<BSplineFit, sol::automagic_flags::none>("BSplineFit")
         .add_constructors(
             [](int deg, int ncp) { return BSplineFit(deg, ncp); }
         )
         .add_member_function("Curve", [](BSplineFit const& self) -> Handle_Geom_BSplineCurve { return self.Curve(); })
-        .add_member_function("GetMaxError", [](BSplineFit& self) -> double { return self.GetMaxError(); });
+        .add_member_function("GetMaxError", [](BSplineFit& self) -> Standard_Real { return self.GetMaxError(); });
     ns.register_type<CFunctionToBspline, sol::automagic_flags::none>("CFunctionToBspline")
         .add_constructors(
-            [](MathFunc3d & f, double umin, double umax, int degree) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree); },
-            [](MathFunc3d & f, double umin, double umax, int degree, double tolerance) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree, tolerance); },
-            [](MathFunc3d & f, double umin, double umax, int degree, double tolerance, int maxDepth) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree, tolerance, maxDepth); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d & f, sol::object umin, sol::object umax, int degree) { return std::make_unique<CFunctionToBspline>(f, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), degree); }
+#else
+            [](MathFunc3d & f, Standard_Real umin, Standard_Real umax, int degree) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d & f, sol::object umin, sol::object umax, int degree, sol::object tolerance) { return std::make_unique<CFunctionToBspline>(f, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), degree, geoml_plugin::to_real(tolerance)); }
+#else
+            [](MathFunc3d & f, Standard_Real umin, Standard_Real umax, int degree, Standard_Real tolerance) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree, tolerance); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](MathFunc3d & f, sol::object umin, sol::object umax, int degree, sol::object tolerance, int maxDepth) { return std::make_unique<CFunctionToBspline>(f, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), degree, geoml_plugin::to_real(tolerance), maxDepth); }
+#else
+            [](MathFunc3d & f, Standard_Real umin, Standard_Real umax, int degree, Standard_Real tolerance, int maxDepth) { return std::make_unique<CFunctionToBspline>(f, umin, umax, degree, tolerance, maxDepth); }
+#endif
+        
         )
         .add_member_function("Curve", [](CFunctionToBspline& self) -> opencascade::handle<Geom_BSplineCurve> { return self.Curve(); })
-        .add_member_function("ApproxError", [](CFunctionToBspline& self) -> double { return self.ApproxError(); });
+        .add_member_function("ApproxError", [](CFunctionToBspline& self) -> Standard_Real { return self.ApproxError(); });
     ns.register_type<CPointsToLinearBSpline, sol::automagic_flags::none>("CPointsToLinearBSpline")
         .add_constructors(
             [](const std::vector<gp_Pnt> & points) { return std::make_unique<CPointsToLinearBSpline>(points); }
@@ -146,12 +181,18 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
     ns.register_type<CompoundSurface, sol::automagic_flags::none>("CompoundSurface")
         .add_constructors(
             []() { return CompoundSurface(); },
-            [](const std::vector<opencascade::handle<Geom_BoundedSurface>> & surfaces, const std::vector<double> & uparams) { return CompoundSurface(surfaces, uparams); }
+            [](const std::vector<opencascade::handle<Geom_BoundedSurface>> & surfaces, const std::vector<Standard_Real> & uparams) { return CompoundSurface(surfaces, uparams); }
         )
-        .add_member_function("Value", [](CompoundSurface const& self, double u, double v) -> gp_Pnt { return self.Value(u, v); });
+        .add_member_function("Value", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](CompoundSurface const& self, sol::object u, sol::object v) -> gp_Pnt { return self.Value(geoml_plugin::to_real(u), geoml_plugin::to_real(v)); }
+#else
+            [](CompoundSurface const& self, Standard_Real u, Standard_Real v) -> gp_Pnt { return self.Value(u, v); }
+#endif
+        );
     ns.register_type<ConcatSurfaces, sol::automagic_flags::none>("ConcatSurfaces")
         .add_constructors(
-            [](const std::vector<opencascade::handle<Geom_BSplineSurface>> & surfaces, const std::vector<double> & surfaceParams, ConcatDir dir) { return ConcatSurfaces(surfaces, surfaceParams, dir); }
+            [](const std::vector<opencascade::handle<Geom_BSplineSurface>> & surfaces, const std::vector<Standard_Real> & surfaceParams, ConcatDir dir) { return ConcatSurfaces(surfaces, surfaceParams, dir); }
         )
         .add_member_function("SetMakeKnotsUniformEnabled", [](ConcatSurfaces& self, unsigned int nUSeg, unsigned int nVSeg) { self.SetMakeKnotsUniformEnabled(nUSeg, nVSeg); })
         .add_member_function("Surface", [](ConcatSurfaces const& self) -> opencascade::handle<Geom_BSplineSurface> { return self.Surface(); });
@@ -159,41 +200,59 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_constructors(
             [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector) { return CurvesToSurface(splines_vector); },
             [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector, bool continuousIfClosed) { return CurvesToSurface(splines_vector, continuousIfClosed); },
-            [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector, const std::vector<double> & parameters) { return CurvesToSurface(splines_vector, parameters); },
-            [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector, const std::vector<double> & parameters, bool continuousIfClosed) { return CurvesToSurface(splines_vector, parameters, continuousIfClosed); }
+            [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector, const std::vector<Standard_Real> & parameters) { return CurvesToSurface(splines_vector, parameters); },
+            [](const std::vector<opencascade::handle<Geom_Curve>> & splines_vector, const std::vector<Standard_Real> & parameters, bool continuousIfClosed) { return CurvesToSurface(splines_vector, parameters, continuousIfClosed); }
         )
         .add_member_function("SetMaxDegree", [](CurvesToSurface& self, int degree) { self.SetMaxDegree(degree); })
-        .add_member_function("GetParameters", [](CurvesToSurface const& self) -> std::vector<double> { return self.GetParameters(); })
+        .add_member_function("GetParameters", [](CurvesToSurface const& self) -> std::vector<Standard_Real> { return self.GetParameters(); })
         .add_member_function("Surface", [](CurvesToSurface& self) -> opencascade::handle<Geom_BSplineSurface> { return self.Surface(); });
     ns.register_type<IntersectionPoint, sol::automagic_flags::none>("IntersectionPoint");
     ns.register_type<Point, sol::automagic_flags::none>("Point")
         .add_constructors(
             []() { return std::make_unique<Point>(); },
-            [](double xval) { return std::make_unique<Point>(xval); },
             [](const Point & aPoint) { return std::make_unique<Point>(aPoint); },
             [](const gp_XYZ & aPoint) { return std::make_unique<Point>(aPoint); },
-            [](double xval, double yval) { return std::make_unique<Point>(xval, yval); },
-            [](double xval, double yval, double zval) { return std::make_unique<Point>(xval, yval, zval); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object xval) { return std::make_unique<Point>(geoml_plugin::to_real(xval)); }
+#else
+            [](Standard_Real xval) { return std::make_unique<Point>(xval); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object xval, sol::object yval) { return std::make_unique<Point>(geoml_plugin::to_real(xval), geoml_plugin::to_real(yval)); }
+#else
+            [](Standard_Real xval, Standard_Real yval) { return std::make_unique<Point>(xval, yval); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object xval, sol::object yval, sol::object zval) { return std::make_unique<Point>(geoml_plugin::to_real(xval), geoml_plugin::to_real(yval), geoml_plugin::to_real(zval)); }
+#else
+            [](Standard_Real xval, Standard_Real yval, Standard_Real zval) { return std::make_unique<Point>(xval, yval, zval); }
+#endif
+        
         )
         .add_member_function(sol::meta_function::addition, [](Point const& self, const Point & aPoint) -> Point { return self + aPoint; })
         .add_member_function(sol::meta_function::subtraction, [](Point const& self, const Point & aPoint) -> Point { return self - aPoint; })
-        .add_member_function(sol::meta_function::multiplication, [](Point const& self, double other) -> Point { return self * other; })
-        .add_member_function("norm2Sqr", [](Point const& self) -> double { return self.norm2Sqr(); })
-        .add_member_function("norm2", [](Point const& self) -> double { return self.norm2(); })
+        .add_member_function(sol::meta_function::multiplication, [](Point const& self, Standard_Real other) -> Point { return self * other; })
+        .add_member_function("norm2Sqr", [](Point const& self) -> Standard_Real { return self.norm2Sqr(); })
+        .add_member_function("norm2", [](Point const& self) -> Standard_Real { return self.norm2(); })
         .add_member_function("Get_gp_Pnt", [](Point const& self) -> gp_Pnt { return self.Get_gp_Pnt(); })
         .add_member_function("Dump", [](Point const& self, std::ostream & aStream) { self.Dump(aStream); })
-        .add_member_function("distance2", [](Point const& self, const Point & point) -> double { return self.distance2(point); });
+        .add_member_function("distance2", [](Point const& self, const Point & point) -> Standard_Real { return self.distance2(point); });
     ns.register_type<PointsToBSplineInterpolation, sol::automagic_flags::none>("PointsToBSplineInterpolation")
         .add_constructors(
             [](opencascade::handle<TColgp_HArray1OfPnt> points) { return PointsToBSplineInterpolation(points); },
             [](opencascade::handle<TColgp_HArray1OfPnt> points, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, maxDegree); },
-            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters) { return PointsToBSplineInterpolation(points, parameters); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<Standard_Real> & parameters) { return PointsToBSplineInterpolation(points, parameters); },
             [](opencascade::handle<TColgp_HArray1OfPnt> points, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, maxDegree, continuousIfClosed); },
-            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, parameters, maxDegree); },
-            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<double> & parameters, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, parameters, maxDegree, continuousIfClosed); }
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<Standard_Real> & parameters, unsigned int maxDegree) { return PointsToBSplineInterpolation(points, parameters, maxDegree); },
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, const std::vector<Standard_Real> & parameters, unsigned int maxDegree, bool continuousIfClosed) { return PointsToBSplineInterpolation(points, parameters, maxDegree, continuousIfClosed); }
         )
         .add_member_function("Curve", [](PointsToBSplineInterpolation const& self) -> opencascade::handle<Geom_BSplineCurve> { return self.Curve(); })
-        .add_member_function("Parameters", [](PointsToBSplineInterpolation const& self) -> const std::vector<double> & { return self.Parameters(); })
+        .add_member_function("Parameters", [](PointsToBSplineInterpolation const& self) -> const std::vector<Standard_Real> & { return self.Parameters(); })
         .add_member_function("Degree", [](PointsToBSplineInterpolation const& self) -> unsigned int { return self.Degree(); });
     ns.register_type<ProjectOnLinearSpline, sol::automagic_flags::none>("ProjectOnLinearSpline")
         .add_constructors(
@@ -201,7 +260,7 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         )
         .add_member_function("IsDone", [](ProjectOnLinearSpline& self) -> bool { return self.IsDone(); })
         .add_member_function("Point", [](ProjectOnLinearSpline& self) -> gp_Pnt { return self.Point(); })
-        .add_member_function("Parameter", [](ProjectOnLinearSpline& self) -> double { return self.Parameter(); });
+        .add_member_function("Parameter", [](ProjectOnLinearSpline& self) -> Standard_Real { return self.Parameter(); });
     ns.register_type<DefaultAnnotation, sol::automagic_flags::none>("DefaultAnnotation");
     ns.register_type<Transformation, sol::automagic_flags::none>("Transformation")
         .add_constructors(
@@ -211,16 +270,58 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
             [](const gp_Vec & translation) { return Transformation(translation); }
         )
         .add_member_function("SetIdentity", [](Transformation& self) { self.SetIdentity(); })
-        .add_member_function("SetValue", [](Transformation& self, int row, int col, double value) { self.SetValue(row, col, value); })
+        .add_member_function("SetValue", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, int row, int col, sol::object value) { self.SetValue(row, col, geoml_plugin::to_real(value)); }
+#else
+            [](Transformation& self, int row, int col, Standard_Real value) { self.SetValue(row, col, value); }
+#endif
+        )
         .add_member_function("Get_gp_GTrsf", [](Transformation const& self) -> gp_GTrsf { return self.Get_gp_GTrsf(); })
         .add_member_function("PostMultiply", [](Transformation& self, const Transformation & aTrans) { self.PostMultiply(aTrans); })
         .add_member_function("PreMultiply", [](Transformation& self, const Transformation & aTrans) { self.PreMultiply(aTrans); })
-        .add_member_function("AddTranslation", [](Transformation& self, double tx, double ty, double tz) { self.AddTranslation(tx, ty, tz); })
-        .add_member_function("AddScaling", [](Transformation& self, double sx, double sy, double sz) { self.AddScaling(sx, sy, sz); })
-        .add_member_function("AddRotationX", [](Transformation& self, double degreeX) { self.AddRotationX(degreeX); })
-        .add_member_function("AddRotationY", [](Transformation& self, double degreeY) { self.AddRotationY(degreeY); })
-        .add_member_function("AddRotationZ", [](Transformation& self, double degreeZ) { self.AddRotationZ(degreeZ); })
-        .add_member_function("AddRotationIntrinsicXYZ", [](Transformation& self, double phi, double theta, double psi) { self.AddRotationIntrinsicXYZ(phi, theta, psi); })
+        .add_member_function("AddTranslation", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object tx, sol::object ty, sol::object tz) { self.AddTranslation(geoml_plugin::to_real(tx), geoml_plugin::to_real(ty), geoml_plugin::to_real(tz)); }
+#else
+            [](Transformation& self, Standard_Real tx, Standard_Real ty, Standard_Real tz) { self.AddTranslation(tx, ty, tz); }
+#endif
+        )
+        .add_member_function("AddScaling", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object sx, sol::object sy, sol::object sz) { self.AddScaling(geoml_plugin::to_real(sx), geoml_plugin::to_real(sy), geoml_plugin::to_real(sz)); }
+#else
+            [](Transformation& self, Standard_Real sx, Standard_Real sy, Standard_Real sz) { self.AddScaling(sx, sy, sz); }
+#endif
+        )
+        .add_member_function("AddRotationX", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object degreeX) { self.AddRotationX(geoml_plugin::to_real(degreeX)); }
+#else
+            [](Transformation& self, Standard_Real degreeX) { self.AddRotationX(degreeX); }
+#endif
+        )
+        .add_member_function("AddRotationY", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object degreeY) { self.AddRotationY(geoml_plugin::to_real(degreeY)); }
+#else
+            [](Transformation& self, Standard_Real degreeY) { self.AddRotationY(degreeY); }
+#endif
+        )
+        .add_member_function("AddRotationZ", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object degreeZ) { self.AddRotationZ(geoml_plugin::to_real(degreeZ)); }
+#else
+            [](Transformation& self, Standard_Real degreeZ) { self.AddRotationZ(degreeZ); }
+#endif
+        )
+        .add_member_function("AddRotationIntrinsicXYZ", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Transformation& self, sol::object phi, sol::object theta, sol::object psi) { self.AddRotationIntrinsicXYZ(geoml_plugin::to_real(phi), geoml_plugin::to_real(theta), geoml_plugin::to_real(psi)); }
+#else
+            [](Transformation& self, Standard_Real phi, Standard_Real theta, Standard_Real psi) { self.AddRotationIntrinsicXYZ(phi, theta, psi); }
+#endif
+        )
         .add_member_function("AddProjectionOnXYPlane", [](Transformation& self) { self.AddProjectionOnXYPlane(); })
         .add_member_function("AddProjectionOnXZPlane", [](Transformation& self) { self.AddProjectionOnXZPlane(); })
         .add_member_function("AddProjectionOnYZPlane", [](Transformation& self) { self.AddProjectionOnYZPlane(); })
@@ -235,7 +336,7 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
             [](Transformation const& self, const gp_Vec & vec) -> gp_Vec { return self.Transform(vec); }
         ))
         .add_member_function("Inverted", [](Transformation const& self) -> Transformation { return self.Inverted(); })
-        .add_member_function("GetValue", [](Transformation const& self, int row, int col) -> double { return self.GetValue(row, col); });
+        .add_member_function("GetValue", [](Transformation const& self, int row, int col) -> Standard_Real { return self.GetValue(row, col); });
     ns.register_type<CurveNetworkSorter, sol::automagic_flags::none>("CurveNetworkSorter")
         .add_constructors(
             [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, const math_Matrix & ProfileIntersectionParms, const math_Matrix & GuideIntersectionParms) { return CurveNetworkSorter(profiles, guides, ProfileIntersectionParms, GuideIntersectionParms); }
@@ -251,7 +352,13 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_member_function("GuideIndices", [](CurveNetworkSorter const& self) -> const std::vector<std::string> & { return self.GuideIndices(); });
     ns.register_type<GordonSurfaceBuilder, sol::automagic_flags::none>("GordonSurfaceBuilder")
         .add_constructors(
-            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & profiles, const std::vector<opencascade::handle<Geom_BSplineCurve>> & guides, const std::vector<double> & intersectParamsOnProfiles, const std::vector<double> & intersectParamsOnGuides, double spatialTolerance) { return GordonSurfaceBuilder(profiles, guides, intersectParamsOnProfiles, intersectParamsOnGuides, spatialTolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & profiles, const std::vector<opencascade::handle<Geom_BSplineCurve>> & guides, const std::vector<Standard_Real> & intersectParamsOnProfiles, const std::vector<Standard_Real> & intersectParamsOnGuides, sol::object spatialTolerance) { return GordonSurfaceBuilder(profiles, guides, intersectParamsOnProfiles, intersectParamsOnGuides, geoml_plugin::to_real(spatialTolerance)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & profiles, const std::vector<opencascade::handle<Geom_BSplineCurve>> & guides, const std::vector<Standard_Real> & intersectParamsOnProfiles, const std::vector<Standard_Real> & intersectParamsOnGuides, Standard_Real spatialTolerance) { return GordonSurfaceBuilder(profiles, guides, intersectParamsOnProfiles, intersectParamsOnGuides, spatialTolerance); }
+#endif
+        
         )
         .add_member_function("SurfaceGordon", [](GordonSurfaceBuilder& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceGordon(); })
         .add_member_function("SurfaceProfiles", [](GordonSurfaceBuilder& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceProfiles(); })
@@ -259,136 +366,346 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_member_function("SurfaceIntersections", [](GordonSurfaceBuilder& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceIntersections(); });
     ns.register_type<InterpolateCurveNetwork, sol::automagic_flags::none>("InterpolateCurveNetwork")
         .add_constructors(
-            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTolerance) { return InterpolateCurveNetwork(profiles, guides, spatialTolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTolerance) { return InterpolateCurveNetwork(profiles, guides, geoml_plugin::to_real(spatialTolerance)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTolerance) { return InterpolateCurveNetwork(profiles, guides, spatialTolerance); }
+#endif
+        
         )
         .add_member_function("Surface", [](InterpolateCurveNetwork& self) -> opencascade::handle<Geom_BSplineSurface> { return self.Surface(); })
         .add_member_function("SurfaceProfiles", [](InterpolateCurveNetwork& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceProfiles(); })
         .add_member_function("SurfaceGuides", [](InterpolateCurveNetwork& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceGuides(); })
         .add_member_function("SurfaceIntersections", [](InterpolateCurveNetwork& self) -> opencascade::handle<Geom_BSplineSurface> { return self.SurfaceIntersections(); })
-        .add_member_function("ParametersProfiles", [](InterpolateCurveNetwork& self) -> std::vector<double> { return self.ParametersProfiles(); })
-        .add_member_function("ParametersGuides", [](InterpolateCurveNetwork& self) -> std::vector<double> { return self.ParametersGuides(); });
+        .add_member_function("ParametersProfiles", [](InterpolateCurveNetwork& self) -> std::vector<Standard_Real> { return self.ParametersProfiles(); })
+        .add_member_function("ParametersGuides", [](InterpolateCurveNetwork& self) -> std::vector<Standard_Real> { return self.ParametersGuides(); });
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_computeParamsBSplineCurve", sol::overload(
-        [](opencascade::handle<TColgp_HArray1OfPnt> points) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points); },
-        [](opencascade::handle<TColgp_HArray1OfPnt> points, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, alpha); },
-        [](opencascade::handle<TColgp_HArray1OfPnt> points, double umin, double umax) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax); },
-        [](opencascade::handle<TColgp_HArray1OfPnt> points, double umin, double umax, double alpha) -> std::vector<double> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax, alpha); }
+        [](opencascade::handle<TColgp_HArray1OfPnt> points) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points); },
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, sol::object alpha) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, geoml_plugin::to_real(alpha)); }
+#else
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, Standard_Real alpha) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, alpha); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, sol::object umin, sol::object umax) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax)); }
+#else
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, Standard_Real umin, Standard_Real umax) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, sol::object umin, sol::object umax, sol::object alpha) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), geoml_plugin::to_real(alpha)); }
+#else
+            [](opencascade::handle<TColgp_HArray1OfPnt> points, Standard_Real umin, Standard_Real umax, Standard_Real alpha) -> std::vector<Standard_Real> { return BSplineAlgorithms::computeParamsBSplineCurve(points, umin, umax, alpha); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_bsplineBasisMat", sol::overload(
-        [](int degree, std::vector<double> const& flatKnots, std::vector<double> const& params) -> math_Matrix { return BSplineAlgorithms::bsplineBasisMat(degree, geoml_plugin::to_real_array1(flatKnots), geoml_plugin::to_real_array1(params)); },
-        [](int degree, std::vector<double> const& flatKnots, std::vector<double> const& params, unsigned int derivOrder) -> math_Matrix { return BSplineAlgorithms::bsplineBasisMat(degree, geoml_plugin::to_real_array1(flatKnots), geoml_plugin::to_real_array1(params), derivOrder); }
+        [](int degree, const TColStd_Array1OfReal & flatKnots, const TColStd_Array1OfReal & params) -> math_Matrix { return BSplineAlgorithms::bsplineBasisMat(degree, flatKnots, params); },
+        [](int degree, const TColStd_Array1OfReal & flatKnots, const TColStd_Array1OfReal & params, unsigned int derivOrder) -> math_Matrix { return BSplineAlgorithms::bsplineBasisMat(degree, flatKnots, params, derivOrder); }
     ));
     ns.register_function("BSplineAlgorithms_matchParameterRange", sol::overload(
         [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & bsplines) { BSplineAlgorithms::matchParameterRange(bsplines); },
-        [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & bsplines, double tolerance) { BSplineAlgorithms::matchParameterRange(bsplines, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & bsplines, sol::object tolerance) { BSplineAlgorithms::matchParameterRange(bsplines, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & bsplines, Standard_Real tolerance) { BSplineAlgorithms::matchParameterRange(bsplines, tolerance); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_matchDegree", [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & bsplines) { BSplineAlgorithms::matchDegree(bsplines); });
-    ns.register_function("BSplineAlgorithms_createCommonKnotsVectorCurve", [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector, double tol) -> std::vector<opencascade::handle<Geom_BSplineCurve>> { return BSplineAlgorithms::createCommonKnotsVectorCurve(splines_vector, tol); });
+    ns.register_function("BSplineAlgorithms_createCommonKnotsVectorCurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector, sol::object tol) -> std::vector<opencascade::handle<Geom_BSplineCurve>> { return BSplineAlgorithms::createCommonKnotsVectorCurve(splines_vector, geoml_plugin::to_real(tol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector, Standard_Real tol) -> std::vector<opencascade::handle<Geom_BSplineCurve>> { return BSplineAlgorithms::createCommonKnotsVectorCurve(splines_vector, tol); }
+#endif
+        );
     ns.register_function("BSplineAlgorithms_createCommonKnotsVectorSurface", [](const std::vector<opencascade::handle<Geom_BSplineSurface>> & old_surfaces_vector, SurfaceDirection dir) -> std::vector<opencascade::handle<Geom_BSplineSurface>> { return BSplineAlgorithms::createCommonKnotsVectorSurface(old_surfaces_vector, dir); });
     ns.register_function("BSplineAlgorithms_reparametrizeBSpline", sol::overload(
-        [](Geom_BSplineCurve & spline, double umin, double umax) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax); },
-        [](Geom_BSplineCurve & spline, double umin, double umax, double tol) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax, tol); },
-        [](Geom_BSplineSurface & spline, double umin, double umax, double vmin, double vmax, double tol) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax, vmin, vmax, tol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Geom_BSplineCurve & spline, sol::object umin, sol::object umax) { BSplineAlgorithms::reparametrizeBSpline(spline, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax)); }
+#else
+            [](Geom_BSplineCurve & spline, Standard_Real umin, Standard_Real umax) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Geom_BSplineCurve & spline, sol::object umin, sol::object umax, sol::object tol) { BSplineAlgorithms::reparametrizeBSpline(spline, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), geoml_plugin::to_real(tol)); }
+#else
+            [](Geom_BSplineCurve & spline, Standard_Real umin, Standard_Real umax, Standard_Real tol) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax, tol); }
+#endif
+        ,
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](Geom_BSplineSurface & spline, sol::object umin, sol::object umax, sol::object vmin, sol::object vmax, sol::object tol) { BSplineAlgorithms::reparametrizeBSpline(spline, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), geoml_plugin::to_real(vmin), geoml_plugin::to_real(vmax), geoml_plugin::to_real(tol)); }
+#else
+            [](Geom_BSplineSurface & spline, Standard_Real umin, Standard_Real umax, Standard_Real vmin, Standard_Real vmax, Standard_Real tol) { BSplineAlgorithms::reparametrizeBSpline(spline, umin, umax, vmin, vmax, tol); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_reparametrizeBSplineNiceKnots", [](opencascade::handle<Geom_BSplineCurve> spline) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineNiceKnots(spline); });
-    ns.register_function("BSplineAlgorithms_reparametrizeBSplineContinuouslyApprox", [](opencascade::handle<Geom_BSplineCurve> spline, const std::vector<double> & old_parameters, const std::vector<double> & new_parameters, size_t n_control_pnts) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineContinuouslyApprox(spline, old_parameters, new_parameters, n_control_pnts); });
+    ns.register_function("BSplineAlgorithms_reparametrizeBSplineContinuouslyApprox", [](opencascade::handle<Geom_BSplineCurve> spline, const std::vector<Standard_Real> & old_parameters, const std::vector<Standard_Real> & new_parameters, size_t n_control_pnts) -> ApproxResult { return BSplineAlgorithms::reparametrizeBSplineContinuouslyApprox(spline, old_parameters, new_parameters, n_control_pnts); });
     ns.register_function("BSplineAlgorithms_flipSurface", [](opencascade::handle<Geom_BSplineSurface> surface) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::flipSurface(surface); });
-    ns.register_function("BSplineAlgorithms_pointsToSurface", [](const TColgp_Array2OfPnt & points, const std::vector<double> & uParams, const std::vector<double> & vParams, bool uContinuousIfClosed, bool vContinuousIfClosed) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::pointsToSurface(points, uParams, vParams, uContinuousIfClosed, vContinuousIfClosed); });
+    ns.register_function("BSplineAlgorithms_pointsToSurface", [](const TColgp_Array2OfPnt & points, const std::vector<Standard_Real> & uParams, const std::vector<Standard_Real> & vParams, bool uContinuousIfClosed, bool vContinuousIfClosed) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::pointsToSurface(points, uParams, vParams, uContinuousIfClosed, vContinuousIfClosed); });
     ns.register_function("BSplineAlgorithms_scale", sol::overload(
-        [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector) -> double { return BSplineAlgorithms::scale(splines_vector); },
-        [](opencascade::handle<Geom_BSplineCurve> spline) -> double { return BSplineAlgorithms::scale(spline); },
-        [](const TColgp_Array2OfPnt & points) -> double { return BSplineAlgorithms::scale(points); },
-        [](const TColgp_Array1OfPnt & points) -> double { return BSplineAlgorithms::scale(points); }
+        [](const std::vector<opencascade::handle<Geom_BSplineCurve>> & splines_vector) -> Standard_Real { return BSplineAlgorithms::scale(splines_vector); },
+        [](opencascade::handle<Geom_BSplineCurve> spline) -> Standard_Real { return BSplineAlgorithms::scale(spline); },
+        [](const TColgp_Array2OfPnt & points) -> Standard_Real { return BSplineAlgorithms::scale(points); },
+        [](const TColgp_Array1OfPnt & points) -> Standard_Real { return BSplineAlgorithms::scale(points); }
     ));
-    ns.register_function("BSplineAlgorithms_isUDirClosed", [](const TColgp_Array2OfPnt & points, double tolerance) -> bool { return BSplineAlgorithms::isUDirClosed(points, tolerance); });
-    ns.register_function("BSplineAlgorithms_isVDirClosed", [](const TColgp_Array2OfPnt & points, double tolerance) -> bool { return BSplineAlgorithms::isVDirClosed(points, tolerance); });
-    ns.register_function("BSplineAlgorithms_trimSurface", [](opencascade::handle<Geom_Surface> surface, double umin, double umax, double vmin, double vmax) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::trimSurface(surface, umin, umax, vmin, vmax); });
-    ns.register_function("BSplineAlgorithms_trimCurve", [](opencascade::handle<Geom_BSplineCurve> curve, double umin, double umax) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::trimCurve(curve, umin, umax); });
+    ns.register_function("BSplineAlgorithms_isUDirClosed", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TColgp_Array2OfPnt & points, sol::object tolerance) -> bool { return BSplineAlgorithms::isUDirClosed(points, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TColgp_Array2OfPnt & points, Standard_Real tolerance) -> bool { return BSplineAlgorithms::isUDirClosed(points, tolerance); }
+#endif
+        );
+    ns.register_function("BSplineAlgorithms_isVDirClosed", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TColgp_Array2OfPnt & points, sol::object tolerance) -> bool { return BSplineAlgorithms::isVDirClosed(points, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TColgp_Array2OfPnt & points, Standard_Real tolerance) -> bool { return BSplineAlgorithms::isVDirClosed(points, tolerance); }
+#endif
+        );
+    ns.register_function("BSplineAlgorithms_trimSurface", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_Surface> surface, sol::object umin, sol::object umax, sol::object vmin, sol::object vmax) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::trimSurface(surface, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax), geoml_plugin::to_real(vmin), geoml_plugin::to_real(vmax)); }
+#else
+            [](opencascade::handle<Geom_Surface> surface, Standard_Real umin, Standard_Real umax, Standard_Real vmin, Standard_Real vmax) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::trimSurface(surface, umin, umax, vmin, vmax); }
+#endif
+        );
+    ns.register_function("BSplineAlgorithms_trimCurve", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineCurve> curve, sol::object umin, sol::object umax) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::trimCurve(curve, geoml_plugin::to_real(umin), geoml_plugin::to_real(umax)); }
+#else
+            [](opencascade::handle<Geom_BSplineCurve> curve, Standard_Real umin, Standard_Real umax) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::trimCurve(curve, umin, umax); }
+#endif
+        );
     ns.register_function("BSplineAlgorithms_concatCurves", sol::overload(
         [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves); },
         [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves, bool parByLength) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves, parByLength); },
-        [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves, bool parByLength, double tolerance) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves, parByLength, tolerance); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves, bool parByLength, sol::object tolerance) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves, parByLength, geoml_plugin::to_real(tolerance)); }
+#else
+            [](std::vector<opencascade::handle<Geom_BSplineCurve>> curves, bool parByLength, Standard_Real tolerance) -> opencascade::handle<Geom_BSplineCurve> { return BSplineAlgorithms::concatCurves(curves, parByLength, tolerance); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_concatSurfacesUDir", sol::overload(
         [](opencascade::handle<Geom_BSplineSurface> bspl1, opencascade::handle<Geom_BSplineSurface> bspl2) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::concatSurfacesUDir(bspl1, bspl2); },
-        [](opencascade::handle<Geom_BSplineSurface> bspl1, opencascade::handle<Geom_BSplineSurface> bspl2, double space_tol) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::concatSurfacesUDir(bspl1, bspl2, space_tol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](opencascade::handle<Geom_BSplineSurface> bspl1, opencascade::handle<Geom_BSplineSurface> bspl2, sol::object space_tol) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::concatSurfacesUDir(bspl1, bspl2, geoml_plugin::to_real(space_tol)); }
+#else
+            [](opencascade::handle<Geom_BSplineSurface> bspl1, opencascade::handle<Geom_BSplineSurface> bspl2, Standard_Real space_tol) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::concatSurfacesUDir(bspl1, bspl2, space_tol); }
+#endif
+        
     ));
     ns.register_function("BSplineAlgorithms_makeKnotsUniform", [](opencascade::handle<Geom_BSplineSurface> surf, unsigned int nseg_u, unsigned int nseg_v) -> opencascade::handle<Geom_BSplineSurface> { return BSplineAlgorithms::makeKnotsUniform(surf, nseg_u, nseg_v); });
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
-    ns.register_function("Point_inner_prod", [](const Point & aPoint, const Point & bPoint) -> double { return Point::inner_prod(aPoint, bPoint); });
+    ns.register_function("Point_inner_prod", [](const Point & aPoint, const Point & bPoint) -> Standard_Real { return Point::inner_prod(aPoint, bPoint); });
     ns.register_function("Point_cross_prod", [](const Point & a, const Point & b) -> Point { return Point::cross_prod(a, b); });
-    ns.register_function("Point_scalar_projection", [](const Point & a, const Point & b) -> double { return Point::scalar_projection(a, b); });
+    ns.register_function("Point_scalar_projection", [](const Point & a, const Point & b) -> Standard_Real { return Point::scalar_projection(a, b); });
     ns.register_function("Point_vector_projection", [](const Point & a, const Point & b) -> Point { return Point::vector_projection(a, b); });
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
-    ns.register_function("Transformation_DegreeToRadian", [](double degree) -> double { return Transformation::DegreeToRadian(degree); });
-    ns.register_function("Transformation_RadianToDegree", [](double radian) -> double { return Transformation::RadianToDegree(radian); });
+    ns.register_function("Transformation_DegreeToRadian", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object degree) -> Standard_Real { return Transformation::DegreeToRadian(geoml_plugin::to_real(degree)); }
+#else
+            [](Standard_Real degree) -> Standard_Real { return Transformation::DegreeToRadian(degree); }
+#endif
+        );
+    ns.register_function("Transformation_RadianToDegree", 
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object radian) -> Standard_Real { return Transformation::RadianToDegree(geoml_plugin::to_real(radian)); }
+#else
+            [](Standard_Real radian) -> Standard_Real { return Transformation::RadianToDegree(radian); }
+#endif
+        );
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
     ns.register_function("curveNetworkToSurface", sol::overload(
         [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides); },
-        [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, double spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, sol::object spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, geoml_plugin::to_real(spatialTol)); }
+#else
+            [](const std::vector<opencascade::handle<Geom_Curve>> & profiles, const std::vector<opencascade::handle<Geom_Curve>> & guides, Standard_Real spatialTol) -> opencascade::handle<Geom_BSplineSurface> { return geoml::curveNetworkToSurface(profiles, guides, spatialTol); }
+#endif
+        
     ));
 }

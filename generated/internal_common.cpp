@@ -51,6 +51,7 @@ using namespace geoml;
 
 #include <memory>
 
+#include "../src/geoml_ad_support.hpp"
 
 using geoml::COptionList;
 using geoml::IsInsideTolerance;
@@ -82,8 +83,20 @@ void register_internal_common(grunk::plugin_namespace& ns)
         );
     ns.register_type<IsInsideTolerance, sol::automagic_flags::none>("IsInsideTolerance")
         .add_constructors(
-            [](double value) { return IsInsideTolerance(value); },
-            [](double value, double tolerance) { return IsInsideTolerance(value, tolerance); }
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object value) { return IsInsideTolerance(geoml_plugin::to_real(value)); }
+#else
+            [](Standard_Real value) { return IsInsideTolerance(value); }
+#endif
+        ,
+            
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](sol::object value, sol::object tolerance) { return IsInsideTolerance(geoml_plugin::to_real(value), geoml_plugin::to_real(tolerance)); }
+#else
+            [](Standard_Real value, Standard_Real tolerance) { return IsInsideTolerance(value, tolerance); }
+#endif
+        
         );
     sol::table(ns.table()).new_enum("Continuity",
             "C0", C0,

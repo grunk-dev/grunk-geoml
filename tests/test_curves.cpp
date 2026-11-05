@@ -93,8 +93,15 @@ TEST_F(CurvesTest, NurbsCurveWithExplicitKnotsAndMultiplicitiesConstructsSuccess
         gp_Pnt(0.0, 0.0, 3.0),
         gp_Pnt(0.0, 4.0, 0.0),
     };
-    env["weights"] = std::vector<double>{1.0, 1.0, 1.0, 1.0, 1.0};
-    env["knots"] = std::vector<double>{0.0, 1.0, 2.0, 3.0};
+    // Standard_Real, not double - nurbs_curve's own generated binding takes
+    // std::vector<Standard_Real> (== std::vector<double> for the stock build,
+    // std::vector<Standard_Adouble> for the AD one) for its weights/knots
+    // parameters, and sol2 has no automatic std::vector<double>-to-
+    // std::vector<Standard_Adouble> conversion - this needs to already be the
+    // right vector element type when it crosses into Lua, same reasoning as
+    // this file's own top comment about std::vector<gp_Pnt>.
+    env["weights"] = std::vector<Standard_Real>{1.0, 1.0, 1.0, 1.0, 1.0};
+    env["knots"] = std::vector<Standard_Real>{0.0, 1.0, 2.0, 3.0};
     env["mults"] = std::vector<int>{3, 1, 1, 3};
 
     auto res = env.eval(R"(

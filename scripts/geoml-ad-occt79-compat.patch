@@ -1,0 +1,95 @@
+diff --git a/src/common/CommonFunctions.cpp b/src/common/CommonFunctions.cpp
+index 79315da..4b188e8 100644
+--- a/src/common/CommonFunctions.cpp
++++ b/src/common/CommonFunctions.cpp
+@@ -1531,7 +1531,7 @@ TopoDS_Face GetNearestFace(const TopoDS_Shape& shape, const gp_Pnt& pnt)
+     TopExp_Explorer explorer;
+     TopoDS_Vertex v = BRepBuilderAPI_MakeVertex(pnt);
+     TopoDS_Face resultFace;
+-    float resultDistance = std::numeric_limits<float>::max();
++    Standard_Real resultDistance(std::numeric_limits<double>::max());
+     for (explorer.Init(shape, TopAbs_FACE); explorer.More(); explorer.Next()) {
+         TopoDS_Face checkFace = TopoDS::Face(explorer.Current());
+         BRepExtrema_DistShapeShape extrema(checkFace, v);
+@@ -1541,7 +1541,7 @@ TopoDS_Face GetNearestFace(const TopoDS_Shape& shape, const gp_Pnt& pnt)
+         }
+         if (extrema.Value() < resultDistance) {
+             resultFace = checkFace;
+-            resultDistance = static_cast<float>(extrema.Value());
++            resultDistance = extrema.Value();
+         }
+     }
+     return resultFace;
+diff --git a/src/common/ad_utility_function.h b/src/common/ad_utility_function.h
+index 0da1186..f6bfdb8 100644
+--- a/src/common/ad_utility_function.h
++++ b/src/common/ad_utility_function.h
+@@ -1,7 +1,19 @@
+ #ifndef AD_UTILITY_FUNCTION_H
+ #define AD_UTILITY_FUNCTION_H
+ 
+-
++// getPrimal<T>'s own generic template plus a double specialization are now
++// provided natively by adOCCT's Standard_Real.hxx (confirmed by reading it
++// directly: the identical template<typename T> double getPrimal(const T& x)
++// { return x.getValue(); } plus its own template<> double getPrimal<double>
++// specialization) - this header's own copies, written against an older adOCCT
++// that didn't have this yet, now collide with it (a redefinition/ODR error,
++// found building geoml's feature/autodiff branch against a current adOCCT).
++// Every file in this source tree that includes this header also transitively
++// includes OCCT headers (confirmed directly - CommonFunctions.cpp,
++// GordonSurfaceBuilder.cpp, Matrix.cpp), so adOCCT's own getPrimal is always
++// available by the time callers actually invoke getPrimal<Standard_Real>/
++// getPrimal<adtl::adouble> here - nothing left to define locally.
++#if !(defined(GEOML_ADOLC_FORWARD) or defined(GEOML_ADOLC_REVERSE))
+ template<typename T>
+ double getPrimal(const T& x);
+ 
+@@ -9,23 +21,7 @@ template<>
+ inline double getPrimal<double>(const double& x)
+ {
+     return x;
+-} 
+-
+-#if defined(GEOML_ADOLC_FORWARD) or defined(GEOML_ADOLC_REVERSE)
+-#include <Standard_TypeDef.hxx>
+-
+-template<>
+-inline double getPrimal<Standard_Real>(const Standard_Real& x)
+-{   
+-    return x.getValue();
+ }
+-
+-template<>
+-inline double getPrimal<adtl::adouble>(const adtl::adouble& x)
+-{   
+-    return x.getValue();
+-}
+-
+ #endif
+ 
+ #endif // AD_UTILITY_FUNCTION_H
+\ No newline at end of file
+diff --git a/src/math/MathFunctions.cpp b/src/math/MathFunctions.cpp
+index 359e5ae..fd89865 100644
+--- a/src/math/MathFunctions.cpp
++++ b/src/math/MathFunctions.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include "MathFunctions.h"
+ #include "geoml/error.h"
++#include "common/ad_utility_function.h"
+ 
+ #include <cassert>
+ #include <algorithm>
+@@ -166,7 +167,9 @@ Standard_Real pow_deriv(Standard_Real x, Standard_Real k, int n)
+     Standard_Real eps = 1e-15;
+ 
+     // check if k is a natural number. if yes, we have to return 0 if n > k
+-    if ( fabs(k - int(k)) < eps && n > k) {
++    // (a discrete, value-only check - int(k) itself isn't AD-differentiable,
++    // so the primal value is all that's needed here, extracted via getPrimal())
++    if ( fabs(k - int(getPrimal(k))) < eps && n > k) {
+         return 0.;
+     }
+     else {

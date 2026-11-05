@@ -1030,12 +1030,103 @@ the value-preserving fix). A new permanent regression test,
 (`grunk/tests/cpp/dynamic_state.cpp`), reproduces the exact shape of the bug with
 a pImpl/`shared_ptr`-backed fixture type (confirmed it actually segfaults against
 the pre-fix code, not just passes trivially) and confirms the fix. All 197/197
-grunk C++ tests and 97/97 Python tests still pass. **Not yet pinned here** - this
-plugin's own `:as()` usage was designed away instead (see above), so nothing in
-this repo currently depends on the fix; it's recorded here because it's a real,
-user-facing grunk usability gap (any `:as()` call on a module-function result
-that isn't immediately, exhaustively consumed within the same expression could
-hit it) worth landing upstream regardless.
+grunk C++ tests and 97/97 Python tests still pass.
+
+**Pinned here as of 2026-09-30** (`GRUNK_REV`/pypi `rev` bumped to
+`1566d7459acfbc42db74b43517267143bf48d438`, the user's own commit landing the fix
+above). Reverting every `fillet_at`/`fillet_face_at` call site back to
+`helpers.fillet_at(...):as(geoml.Shape)` + `f1.shape()` (the "natural" spelling)
+with only this fix pinned **still segfaulted**, reproducibly, at the exact same
+`geoml::Shape::shape()` call site - a genuinely **second**, separate grunk-core
+bug, found (per the user's own explicit instruction) by treating this plugin's
+own code generation as a deliberate stress test of grunk core, not stopping at
+"found a workaround."
+
+**Root-caused for real this time**, via a minimal, mid-evaluation-crashing
+reproduction (bisected down from the full recipe to two small sub-recipes, each
+computing one fillet chain, composed by a top-level module function - small
+enough that a debug build's real backtrace, not guesswork, pinned the exact
+crash site) and confirmed with an even smaller, recipe-free repro:
+
+```lua
+gshape = geoml.Shape.new(box)              -- box: a real TopoDS_Shape
+ok = occt.export_brep(gshape, "x.brep")    -- export_brep expects TopoDS_Shape, not geoml::Shape
+```
+
+This alone segfaults, no `:as()`, no recipes, no module functions involved at
+all. **sol2 defaults to *unchecked* argument extraction**
+(`SOL_ALL_SAFETIES_ON` off unless building in debug mode, which this project
+never does) - a Lua value of one registered usertype (`geoml::Shape`) handed to
+a native function expecting a *different*, unrelated registered usertype
+(`TopoDS_Shape`) is blindly reinterpreted as the target type instead of being
+rejected, corrupting memory. This is a real, general, previously-latent grunk
+usability gap that has nothing to do with `:as()`, module functions, or recipe
+composition specifically - those just happened to be how this project's own
+generated code first produced a `geoml::Shape` value that a later call site
+then passed somewhere a `TopoDS_Shape` was actually expected, with nothing in
+between converting it. (The `:as()` dangling-pointer bug fixed just above is a
+real, independent bug, correctly fixed - it was simply never the cause of
+*this* particular crash, in either its recipe-composition or its
+single-expression form.)
+
+**Fixed upstream in `grunk` itself** (uncommitted, same fix-then-bump workflow):
+`grunk/dynamic/CMakeLists.txt` now defines `SOL_ALL_SAFETIES_ON=1` as an
+`INTERFACE` compile definition on the `grunk::dynamic` target, so sol2's
+*checked* getter is on consistently for grunk's own code and for every
+downstream consumer that links against it (this can't be a per-project opt-in -
+sol2 template instantiations for the same types must agree on this define
+across every translation unit that touches them, so setting it only in this
+plugin's own `CMakeLists.txt` would have been unsafe). Verified: the exact
+`geoml.Shape.new(box)` example above now throws a clear, catchable
+`sol::error` ("stack index 1, expected userdata, received sol.geoml::Shape...")
+instead of segfaulting; the reverted, "natural" `:as(geoml.Shape)` design for
+the whole `airplane_seats` recipe now runs correctly end-to-end with this fix
+active (re-verified: `airplane_seats.brep`'s bounding box still matches
+`seat_diag.cpp`'s own reference exactly); all 197 (198 with the new regression
+test below) of grunk's own C++ tests and all 97 Python tests still pass.
+
+**One real, load-bearing regression found and fixed along the way, in
+`grunk-occt`**: turning the flag on broke one existing grunk-occt test,
+`GeomTest.NullHandleSurfacesAsNil` - sol2's *checked* unique-usertype getter
+(gated by the same define) validates a `Handle(X)` argument's own metatable
+directly, with **no** awareness of `add_bases`/`rebind_actual_type` base-class
+walking at all (unlike the *unchecked* getter, which does consult it - this is
+a real, narrow, pre-existing sol2 limitation, confirmed by reading
+`stack_check_unqualified.hpp`'s own unique-usertype branch directly, not
+guessed). This only affects a `Handle(Derived)` value bound to a `Handle(Base)
+const&` **by-reference** parameter - grunk-occt's own hand-written
+`downcast_to_geom_line` (`src/geom/geom_extras.hpp`) was the one place still
+doing that; every *generated* Handle(X) parameter already takes its handle **by
+value**, per `codegen/hooks.py`'s own established "by-value `emit_param()`"
+convention (a different fix, landed 2026-09-29, for a different but related
+sol2 quirk - see that repo's own DESIGN.md). Confirmed this isn't a
+hypothetical distinction: `wing_loft.grr.yml`'s own real
+`occt.BRepBuilderAPI_MakeFace` call (a genuine production `Handle(Geom_Surface)`
+upcast, via the generator's by-value overload) keeps working fine with the flag
+on; only the one hand-written, by-reference outlier broke. Fixed by switching
+`downcast_to_geom_line`'s own parameter to by-value too, matching the
+convention it should have followed from the start - not a workaround, a drift
+fix. grunk-occt's own full suite (52/52 C++, 21/21 Python, all 4 examples) and
+grunk-geoml's own (23/23 C++, 18/18 Python, all 4 examples) pass with both
+fixes active together.
+
+**Pinned here and in grunk-occt as of 2026-11-05** (`GRUNK_REV`/pypi `rev`
+bumped to `ba3b775d89509d1f94e41c27092919561c247304`, grunk's own `main` post
+PR grunk-dev/grunk#299's merge - both the `SOL_ALL_SAFETIES_ON` fix and the
+`downcast_to_geom_line` by-value fix landed for real). This recipe's own
+`fillet_at`/`fillet_face_at` were switched back to the natural
+`:as(geoml.Shape)` + `.shape()` spelling (the internal-`:shape()` workaround
+documented above is gone). One more missing conversion turned up switching
+back, caught immediately as a clear, catchable error rather than a crash -
+exactly the point of the fix: `seat`'s own `steps:` read `seat_cushion`
+(a `geoml::Shape`, the `seat_cushion` sub-recipe's own output) straight from
+`cushion_caller:get("seat_cushion")` and passed it directly into
+`helpers.make_compound(seat_cushion, backrest_reclined)`, which forwards its
+arguments straight into `TopoDS_Builder::Add(TopoDS_Shape&, TopoDS_Shape
+const&)` - caught as `"stack index 3, expected userdata, received
+sol.geoml::Shape"` instead of segfaulting. Fixed the same way as every other
+such call site: `:as(geoml.Shape)` on the `:get(...)` result, `.shape()` where
+it's actually consumed.
 
 **Verified end to end, the same way as every other example in this project**: all
 4 example recipes (`load_carrier`, `wing_loft`, `airplane_seats`,
@@ -1091,3 +1182,158 @@ plugin's own current header coverage.
 Verified: `test_hooks.py` 18/18 (new coverage added for the mutable-array-ref
 rejection, previously untested here at all), full `runUnitTests` (23/23) and
 all four example recipes unaffected.
+
+## AD variant verified end to end for the first time (2026-11-05)
+
+Step 7 of the original plan (AD validation) had never actually been exercised in
+this repo - `scripts/install_adocct.sh` didn't even exist yet (`pixi.toml`'s own
+`install_adocct` task referenced it, but it had never been ported over from
+`grunk-occt`), and `.deps/adgeoml`/`build-ad` had never been built. Brought up
+for real, end to end, prioritized ahead of the rest of the `grunk-geoml` port
+for a milestone report.
+
+**Build infrastructure, all genuinely new, not just copied unchanged:**
+- `scripts/install_adocct.sh` - was simply missing; ported verbatim from
+  `grunk-occt`'s own copy (entirely generic, no OCCT-repo-specific content) -
+  this plugin's own AD build points at the *same* `.deps/adocct` install
+  `grunk-occt`'s own AD build uses, per the already-documented design.
+- `CMakeLists.txt`: geoml's own AD-enabled build finds ADOL-C via its own
+  `cmake/UseADOLC.cmake`, which creates an imported target literally named
+  `ADOLC::ADOLC` - baked into geoml's exported `geoml-targets.cmake`
+  (`INTERFACE_LINK_LIBRARIES` names it directly). This plugin finds ADOL-C via
+  pkg-config instead (`PkgConfig::ADOLC`), so `find_package(geoml)` failed to
+  resolve that target name at all until `add_library(ADOLC::ADOLC ALIAS
+  PkgConfig::ADOLC)` was added right after the `pkg_check_modules` call.
+- `scripts/geoml-ad-occt79-compat.patch` (new, alongside the existing
+  `geoml-occt79-compat.patch` which - confirmed by testing - applies unchanged
+  to the `feature/autodiff` branch too, and is now applied there as well) -
+  three further, genuinely AD-specific compatibility gaps found building
+  `feature/autodiff` for real, for the first time, against this project's
+  actual pinned ADOL-C/adOCCT versions:
+  - `src/common/ad_utility_function.h`'s own `getPrimal<double>`/
+    `getPrimal<Standard_Real>`/`getPrimal<adtl::adouble>` explicit
+    specializations collide (an ODR/redefinition error) with adOCCT's own
+    `Standard_Real.hxx`, which now provides an equivalent generic
+    `getPrimal<T>(x) { return x.getValue(); }` template itself - this geoml
+    branch predates adOCCT gaining this. Guarded out under
+    `GEOML_ADOLC_FORWARD`/`GEOML_ADOLC_REVERSE`, relying on adOCCT's own copy.
+  - `src/common/CommonFunctions.cpp`'s `GetNearestFace` stored a running
+    minimum distance in a plain `float`, `static_cast` from `Standard_Real` -
+    under AD, `Standard_Real` is `Standard_Adouble` (ADOL-C's `adtl::adouble`),
+    which has no narrowing conversion to `float` at all (and, separately, an
+    *ambiguous* conversion to `double` - three competing `operator double`
+    overloads on `adtl::adouble`). Switched the variable itself to a plain
+    `Standard_Real` (the natural type for a value only ever compared against
+    another `Standard_Real`, never consumed as output) - no cast needed either
+    way, works unchanged for both builds.
+  - `src/math/MathFunctions.cpp`'s `pow_deriv` did `int(k)` directly on a
+    `Standard_Real` to check whether an exponent is (close to) a natural
+    number - `adtl::adouble` has no `int` conversion operator. This check is a
+    discrete, value-only branch condition (not something that needs to carry a
+    derivative), so it now extracts the primal value via `getPrimal(k)` first -
+    the same utility used throughout this branch for exactly this purpose.
+  - Worth reporting upstream to `DLR-SC/geoml` directly (real gaps in
+    `feature/autodiff`'s own AD-portability) - not yet done.
+
+**A genuine `grunk-geoml` `hooks.py` bug found by actually regenerating against
+AD-enabled headers, not just rebuilding the existing `generated/*.cpp` with a
+different CMake flag** (the real fix this whole exercise was really about -
+everything above was a prerequisite to be *able* to regenerate at all):
+`codegen/hooks.py`'s own `classify_param()` had `return None if
+param.is_mutable_ref else "real"` for a `Standard_Real`-spelled parameter - the
+comment right above it already said *why* ("Lua has no mutable-number-by-
+reference concept"), but returning `None` instead of `generate.REJECTED` (the
+exact ambiguity the `grunk`-core fix earlier in this file exists to prevent)
+let a mutable `Standard_Real&` fall through to `Param.kind()`'s own generic
+"mutable reference to a genuine, stable-identity class" fallback rule instead
+of being rejected outright. That fallback is correct *in general* - but
+`Standard_Real`'s own *canonical* spelling is build-variant-dependent: a
+fundamental `double` for the stock build, but a real class
+(`Standard_Adouble`) for the AD build. Regenerating against AD headers for the
+first time, `geoml::Point::getMinMax(Standard_Real& min, Standard_Real& max)`
+was silently accepted via that fallback (`Standard_Adouble` genuinely satisfies
+"a stable-identity class") and baked as a literal, non-`#ifdef`-gated
+`Standard_Real&` parameter straight into the *shared* `generated/
+internal_geometry.cpp` - which then failed to even compile for the stock
+build, where that same parameter resolves to `double&` and sol2 cannot bind a
+mutable reference to a fundamental-type argument at all (confirmed directly:
+`cannot bind non-const lvalue reference of type 'double&' to an rvalue of type
+'double'`). Fixed by returning `generate.REJECTED` instead of `None` for this
+case - `Point::getMinMax` is now correctly, symmetrically rejected regardless
+of which build the generator is run against.
+
+**Regenerating also surfaced a real, narrow sol2 limitation, now moot**: an
+earlier regeneration attempt (before the `hooks.py` fix above) hit "no type
+named `function_pointer_type`" deducing `sol::lua_bind_traits<F>` for one
+`PointsToBSplineInterpolation` constructor overload and one `CurvesToSurface`
+overload - both combining a `Handle(X)` parameter with a
+`std::vector<Standard_Real> const&` one in the same `sol::overload_set` as
+other overloads that (at the time) mixed `Standard_Real` and plain `double` in
+the same set (since the `getMinMax` bug above hadn't been fixed yet, the
+*types* feeding into these overload sets were genuinely inconsistent). Once
+the `hooks.py` fix made every `Standard_Real`-spelled parameter consistently
+`#ifdef`-gated throughout, this error disappeared on its own, with no change
+needed to either constructor - confirming it was a symptom of the type
+inconsistency, not an independent sol2 bug worth working around separately.
+
+**`generated/*.cpp` is the single, shared, `#ifdef`-gated artifact this whole
+regeneration produced** - the same files are used by both the `default` and
+`ad` environments (confirmed: both rebuilt from scratch against it, both
+green). Regenerating required pointing `grunk codegen`'s own libclang parse at
+every include directory the AD build's own compile step needs (adOCCT's own
+OCCT headers, ADOL-C's own headers, and every one of geoml's own `internal/*`
+subdirectories - the same list `CMakeLists.txt`'s own `GEOML_INTERNAL_INCLUDE_DIRS`
+already uses for *compiling* the generated code, needed here too since the
+generator's own `--include-dir` flag only accepts one path) via `CPATH`, since
+`grunk codegen` has no multi-path include flag of its own.
+
+**New permanent regression test, `tests/test_ad.cpp`** (only built under
+`GRUNK_GEOML_ENABLE_AD`, mirroring `grunk-occt`'s own `tests/test_ad.cpp`):
+seeds a `gp_Pnt`'s X coordinate as an AD variable directly via `adtl::adouble`'s
+own C++ API (no `adolc_plugin.so` load needed - this test already links ADOL-C
+directly, like every other AD-gated test file here), calls `geoml.translate`
+(a real, generated, AD-portable `geoml.*` function - the actual thing this
+step needs to prove works) from Lua, and reads the result straight back into
+C++ (same "construct/extract raw OCCT values in C++, never register them"
+convention every other test file in this suite already uses - see
+`tests/test_curves.cpp`'s own comment). `geoml::translate` is a plain
+coordinate-wise addition, so the expected derivative is known in exact closed
+form (translating by a constant vector is affine in each origin coordinate):
+`d(moved.X())/d(origin.X()) == 1` exactly, and the derivative must be exactly
+`0` in `Y` (a coordinate leak would be a real, distinguishable bug) - the same
+reasoning `grunk-occt`'s own `BezierAdTest` uses.
+
+**Two pre-existing, hand-written test files needed AD-portability fixes of
+their own** (both construct raw OCCT values directly in C++, a pattern that
+happened to assume `Standard_Real == double` throughout, since neither had
+ever been exercised under AD before): `tests/test_transformations.cpp`'s own
+`gp_Pnt`/`gp_Vec` coordinate assertions now go through
+`geoml_plugin::to_double(...)` (already existed in `src/geoml_ad_support.hpp`,
+just never used from a test file) instead of comparing a raw `Standard_Real`
+against a `double` directly; `tests/test_curves.cpp`'s own
+`NurbsCurveWithExplicitKnotsAndMultiplicitiesConstructsSuccessfully` built its
+`weights`/`knots` vectors as `std::vector<double>`, which no longer matches
+`geoml.nurbs_curve`'s own (now correctly AD-portable)
+`std::vector<Standard_Real>` parameter under AD - switched to
+`std::vector<Standard_Real>` directly, correct and unchanged for both builds.
+
+**Verified end to end, both environments, from a clean rebuild each**:
+`pixi run -e ad test` - 24/24 (including the new `GeomlAdTest` - a real,
+closed-form-verified forward-mode derivative through actual AD-enabled geoml
+code, not a stub); `pixi run -e default test`/`test_hooks` - 23/23 C++, 18/18
+Python, confirming the regenerated `generated/*.cpp` changed nothing observable
+for the stock build; all 4 example recipes (`pixi run -e default run_examples`)
+still green, `airplane_seats.brep`'s own bounding box still matches the
+already-established reference exactly.
+
+**Known follow-up, not blocking**: `pixi.toml`'s own `[feature.ad.tasks]`
+`run_examples` task (`python examples/run_example.py build-ad/libgeoml_plugin.so
+build-ad/_deps/grunk-adolc-build/libadolc_plugin.so`) was never actually
+runnable - `examples/run_example.py` takes exactly two positional arguments,
+`(geoml_plugin, occt_plugin)`, with no AD/`adolc_plugin` concept at all, and no
+example recipe here exercises an AD derivative the way `grunk-occt`'s own
+`bspline_curve.grr.yml` does. The C++-level verification above (`tests/test_ad.cpp`)
+is what actually proves AD works correctly through this plugin's own generated
+code; a real recipe-level check mixing `occt.*`/`geoml.*` AD-carrying values
+end to end (matching `grunk-occt`'s own `run_examples`-level AD check) is a
+separate, legitimate follow-up, not done here.

@@ -66,6 +66,30 @@
 # mutable reference specifically - the unsupported-element case is a deliberate
 # divergence from grunk-occt's own copy, see this repo's own DESIGN.md) silently
 # fall through to being accepted as a plain "object" instead.
+# Bumped again 2026-09-30, to 1566d7459acfbc42db74b43517267143bf48d438 - lands a fix to DynamicFeature::as():
+# its returned proxy used to capture `this` (a raw pointer to the DynamicFeature
+# it was called on) instead of a copy, so calling :as(Type) on the unnamed
+# result of a module-function call (no other Lua reference keeps that temporary
+# alive) could leave the captured pointer dangling once Lua's GC collected it -
+# found the hard way in this repo's own airplane_seats.grr.yml (a real,
+# reproducible segfault inside geoml::Shape::shape()), which had worked around
+# it by avoiding :as() entirely (module helpers returning a plain TopoDS_Shape
+# instead of a geoml::Shape). See this repo's own DESIGN.md for the full story.
+# Turned out this alone wasn't enough - reverting the workaround with only this
+# fix pinned still segfaulted, from a second, separate bug (see the next bump).
+# Bumped again 2026-11-05, to ba3b775d89509d1f94e41c27092919561c247304 (grunk's
+# own main, post PR grunk-dev/grunk#299 merge) - lands SOL_ALL_SAFETIES_ON=1 as
+# an INTERFACE compile definition on grunk::dynamic: sol2 now does *checked*
+# argument/userdata extraction everywhere instead of defaulting to unchecked -
+# this was the real, second bug behind the segfault above (a geoml::Shape
+# value passed directly where a TopoDS_Shape was expected got silently
+# reinterpreted instead of rejected; has nothing to do with :as() specifically,
+# confirmed via a recipe-free, :as()-free minimal repro). The mismatch now
+# throws a clear, catchable sol::error instead of crashing - the :as()
+# workaround in this repo's own airplane_seats.grr.yml can finally be removed
+# for real, now that this is actually pinned (see DESIGN.md's own follow-up
+# entry for the full story, including the one grunk-occt-side regression this
+# flag caused and how it was fixed there).
 #
 # Optional -D GRUNK_INSTALL_NAME=<name>: an alternate install-directory name under
 # .deps/ (e.g. "grunk-ad" for [feature.ad.tasks]'s own invocation) - defaults to
@@ -76,7 +100,7 @@ cmake_minimum_required(VERSION 3.15)
 if(NOT DEFINED GRUNK_INSTALL_NAME)
     set(GRUNK_INSTALL_NAME "grunk")
 endif()
-set(GRUNK_REV "2742afb12c65efc0e6587c2198609e6463ddea4b")
+set(GRUNK_REV "ba3b775d89509d1f94e41c27092919561c247304")
 
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(GRUNK_PREFIX "${PROJECT_ROOT}/.deps/${GRUNK_INSTALL_NAME}")

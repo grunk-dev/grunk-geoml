@@ -28,6 +28,8 @@
 #include <gp_Vec.hxx>
 #include <Geom_Curve.hxx>
 
+#include "../src/geoml_ad_support.hpp"
+
 // This test file's own .as<opencascade::handle<Geom_Curve>>() call below (to
 // inspect the transformed curve via plain C++ instead of Lua, see
 // TranslationAppliesToAnInterpolatedCurve's own comment) instantiates sol2's
@@ -84,9 +86,9 @@ TEST_F(TransformationsTest, TranslationMovesAPointByTheTranslationVector)
     ASSERT_TRUE(res.valid());
 
     gp_Pnt p1 = env.get<sol::object>("p1").as<gp_Pnt>();
-    EXPECT_DOUBLE_EQ(p1.X(), 1.0);
-    EXPECT_DOUBLE_EQ(p1.Y(), 2.0);
-    EXPECT_DOUBLE_EQ(p1.Z(), 3.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p1.X()), 1.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p1.Y()), 2.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p1.Z()), 3.0);
 }
 
 TEST_F(TransformationsTest, TranslationLeavesAFreeVectorUnaffected)
@@ -102,9 +104,9 @@ TEST_F(TransformationsTest, TranslationLeavesAFreeVectorUnaffected)
     ASSERT_TRUE(res.valid());
 
     gp_Vec v1 = env.get<sol::object>("v1").as<gp_Vec>();
-    EXPECT_DOUBLE_EQ(v1.X(), 1.0);
-    EXPECT_DOUBLE_EQ(v1.Y(), 0.0);
-    EXPECT_DOUBLE_EQ(v1.Z(), 0.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(v1.X()), 1.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(v1.Y()), 0.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(v1.Z()), 0.0);
 }
 
 // pre_multiply/copy constructor - ordinary generated coverage (no escape hatch
@@ -124,7 +126,7 @@ TEST_F(TransformationsTest, CopyConstructedTransformBehavesTheSame)
     ASSERT_TRUE(res.valid());
 
     gp_Pnt p1 = env.get<sol::object>("p1").as<gp_Pnt>();
-    EXPECT_DOUBLE_EQ(p1.X(), 5.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p1.X()), 5.0);
 }
 
 // wing_loft.grr.yml's own real re-port need (see DESIGN.md): geoml::Transform has
@@ -167,11 +169,11 @@ TEST_F(TransformationsTest, TranslationAppliesToAnInterpolatedCurve)
     gp_Pnt p_last = transformed_curve->Value(transformed_curve->LastParameter());
     gp_Pnt orig_first = orig_curve->Value(orig_curve->FirstParameter());
 
-    EXPECT_DOUBLE_EQ(p_first.X(), 0.0);
-    EXPECT_DOUBLE_EQ(p_first.Z(), 50.0);
-    EXPECT_DOUBLE_EQ(p_last.X(), 1.0);
-    EXPECT_DOUBLE_EQ(p_last.Z(), 50.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p_first.X()), 0.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p_first.Z()), 50.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p_last.X()), 1.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(p_last.Z()), 50.0);
     // The original curve must be unaffected by the transform.
-    EXPECT_DOUBLE_EQ(orig_first.X(), 0.0);
-    EXPECT_DOUBLE_EQ(orig_first.Z(), 0.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(orig_first.X()), 0.0);
+    EXPECT_DOUBLE_EQ(geoml_plugin::to_double(orig_first.Z()), 0.0);
 }

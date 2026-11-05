@@ -101,6 +101,15 @@ if(GRUNK_GEOML_ENABLE_AD)
 
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(ADOLC REQUIRED IMPORTED_TARGET GLOBAL adolc)
+    # geoml's own AD-enabled build (scripts/install_adgeoml.sh) finds ADOL-C via its
+    # own cmake/UseADOLC.cmake, which creates an imported target literally named
+    # ADOLC::ADOLC - geoml's own exported geoml-targets.cmake bakes that exact name
+    # into its INTERFACE_LINK_LIBRARIES, so find_package(geoml) below fails to
+    # resolve it unless a target by that name already exists in this scope. This
+    # plugin finds ADOL-C via pkg-config instead (PkgConfig::ADOLC, used directly
+    # for geoml_plugin/runUnitTests further down) - aliased here so both names
+    # resolve to the same actual library.
+    add_library(ADOLC::ADOLC ALIAS PkgConfig::ADOLC)
 
     # --- grunk-adolc (FetchContent, vendors its own source - same pattern as
     # grunk-occt's own identical block, see its comment for the full rationale,

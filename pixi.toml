@@ -42,7 +42,7 @@ pytest = "*"
 # Same pin as grunk-occt's own [pypi-dependencies] - see its comment for the full
 # rationale (this is also the sole source of the `generate_code` task's runtime
 # needs, grunk.codegen's own libclang/pyyaml dependencies).
-grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "2742afb12c65efc0e6587c2198609e6463ddea4b" }
+grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "ba3b775d89509d1f94e41c27092919561c247304" }
 
 # Stock OCCT - only pulled in by the `default` environment (see [environments]),
 # same as grunk-occt's own identical section.
@@ -69,7 +69,7 @@ gtest = "*"
 pkg-config = "*"
 
 [feature.ad.pypi-dependencies]
-grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "2742afb12c65efc0e6587c2198609e6463ddea4b" }
+grunk = { git = "https://github.com/grunk-dev/grunk.git", rev = "ba3b775d89509d1f94e41c27092919561c247304" }
 
 [feature.ad.activation.env]
 # .deps/grunk-ad - same reasoning as grunk-occt's own [feature.ad.activation.env]:
