@@ -119,6 +119,23 @@ def main() -> None:
     run_recipe(state, EXAMPLES_DIR / "wing_loft.grr.yml")
     run_recipe(state, EXAMPLES_DIR / "airplane_seats.grr.yml")
     run_recipe(state, EXAMPLES_DIR / "gasturbine_cavity_update.grr.yml")
+    if adolc_plugin_path is None:
+        run_recipe(state, EXAMPLES_DIR / "wing_fuselage_configuration.grr.yml")
+    else:
+        # geoml.nurbs_curve's own std::vector<Standard_Real> weights/knots
+        # parameters (generated/curves.cpp) are NOT dual-emitted for AD the way
+        # scalar Standard_Real parameters are (see generated/transformations.cpp's
+        # own translate) - they stay std::vector<Standard_Real> in both builds,
+        # which under AD means std::vector<Standard_Adouble>. occt.real_vec(...)
+        # (src/vector_extras.hpp) always builds a plain std::vector<double>
+        # though, with no AD-aware counterpart exposed to Lua - so this recipe's
+        # own fuselage sub-recipe (geoml.nurbs_curve(..., occt.real_vec(...), ...)
+        # for its profile curves) cannot be called under the AD build at all from
+        # Lua. A real, separate gap in grunk-occt's own vector_extras.hpp, not
+        # something to work around here - this recipe is a Step 6 port, not part
+        # of the AD verification track (ad_translate.grr.yml), so it is simply
+        # skipped under AD rather than faked.
+        print("Skipping wing_fuselage_configuration.grr.yml under AD (occt.real_vec has no AD-portable counterpart)")
     run_ad_translate(state, has_ad=adolc_plugin_path is not None)
 
 

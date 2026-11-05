@@ -1,0 +1,538 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# Full, faithful line-by-line re-port of the real original
+# (/localdata2/klei_j0/code/geoml's own git history, commit 07696a431f909795332d1fd
+# 677344a5b75502f44, examples/fuselage_wing_configuration.cpp - grunk-dev/grunk#189's
+# own load_carrier.grr.yml/wing_loft.grr.yml trace back to the same file, see their
+# own top comments) - the last unstarted piece of Step 6 (DESIGN.md), deliberately
+# tackled last given its size: ~1500 lines of hand-built B-spline surfaces versus
+# those two recipes' much smaller scope.
+#
+# Two `recipes:` sub-recipes, not one flat steps: block (the user's own explicit
+# request for this port): `fuselage` (mid cylinder -> rear surface + cap -> nose +
+# cap, see its own modules:/steps: comments) and `main_wing` (6 literal airfoil-
+# station profiles -> upper/lower curve-network surfaces + 2 end caps). The outer
+# steps: block composes them with a single BRepAlgoAPI_Fuse, the same composition
+# mechanism gasturbine_cavity_update.grr.yml already demonstrates
+# (`recipes.<name>():get("<output>")`).
+#
+# The ORIGINAL's own `geoml::` free functions this recipe's two sub-recipes call
+# into (`b_spline_curve`, `b_spline_surface`, `revolving_surface`, `move`,
+# `extract_control_point_column_row`, `create_point_net_from_arrays`) no longer
+# exist in current geoml at all - confirmed by grepping
+# .deps/geoml/include/geoml/ directly, not assumed. Faithful modern equivalents,
+# verified empirically against the original's own literal numeric data (control
+# points, weights, knots, multiplicities, move factors - all copied verbatim, never
+# approximated):
+#   - `geoml::b_spline_curve(pts, w, k, m, deg)` -> `geoml.nurbs_curve(...)` (same
+#     function, already used elsewhere in this plugin).
+#   - `geoml::b_spline_surface(cp_net, w_net, kU, kV, mU, mV, degU, degV, periodic)`
+#     -> grunk-occt's own native `occt.Geom_BSplineSurface.new(poles_flat, rows,
+#     cols, weights_flat, w_rows, w_cols, UKnots, VKnots, UMults, VMults, UDegree,
+#     VDegree, UPeriodic)` constructor directly - no geoml-level equivalent exists
+#     (geoml's own modern `nurbs_surface` takes an `Array2d<T>`, which this plugin
+#     does not yet bind to Lua at all - `generated/data_structures.cpp`'s own
+#     `register_data_structures()` is empty - so the native flat-vector constructor,
+#     already fully registered, is used instead; not a blocker, just a different
+#     route to the same surface). The `rows`/`cols`/U/V/periodic-direction mapping
+#     (which of the "5 columns of 6 points" is U vs V) was derived empirically, not
+#     assumed - see DESIGN.md's own writeup of this port for the full derivation.
+#   - `geoml::revolving_surface(curve, axis)` -> the native
+#     `occt.Geom_SurfaceOfRevolution.new(curve, axis)` +
+#     `occt.GeomConvert_SurfaceToBSplineSurface(...)` pair (both independently
+#     registered, confirmed working together).
+#   - `geoml::move(point_or_array, vec, factor)` -> `geoml.translate(...)` (same
+#     function, already used elsewhere in this plugin for both a single `gp_Pnt`
+#     and a `std::vector<gp_Pnt>`).
+#   - `geoml::extract_control_point_column_row`/`geoml::create_point_net_from_arrays`
+#     have no modern equivalent at all (removed, not renamed) but are trivial
+#     enough to not need one - built directly from `Geom_BSplineSurface:Pole(u,v)`
+#     (already registered) and plain point lists respectively.
+#
+# Two real, previously-undocumented recipe-environment quirks found while building
+# this (both documented inline, at their own call sites, with the empirical
+# evidence that pinned them down):
+#   - `:as(Type)`, already known to have a real `geoml::Shape`-specific segfault
+#     (DESIGN.md's `airplane_seats` entry), turns out to have a SEPARATE sharp edge
+#     too: calling it on one lazily-evaluated value in this recipe corrupted an
+#     entirely unrelated value elsewhere in the same recipe graph. Avoided
+#     entirely here by moving every native-type-dependent call
+#     (`FirstParameter`/`LastParameter`/`D1`) into a `modules:` helper instead,
+#     which needs no `:as()` at all.
+#   - A `modules:` function's multiple return values don't both survive a
+#     `a, b = helpers.fn(...)` multi-assignment in the decorated `steps:`
+#     environment (the second one silently comes back `nil`) - worked around with
+#     two separate single-return helper functions instead of one two-return one.
+#
+# The real original's own dead horizontal-tail ("Hoehenleitwerk")/vertical-tail
+# ("Seitenleitwerk") computation (~440 lines, building several more B-spline
+# surfaces whose outputs are never consumed by the final shape at all - confirmed
+# by reading all the way to the original's own final assembly) is deliberately
+# NOT ported: it computes nothing the final geometry actually uses, so omitting it
+# loses no faithfulness to the real output shape.
+#
+# Verified end to end: both sub-recipes export a well-formed solid on their own
+# (bounding boxes matching their own literal input data exactly - e.g. the wing's
+# own Y-max of -375.046 is an exact match to the inner station's translated Y
+# coordinate, 1500 - 1875.046), and the final fused shape's own bounding box is
+# exactly the union of the two - `[1000,-16963.5,-4000] - [37500,3464.1,2000]`.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+recipes:
+  fuselage:
+    uses:
+      grunk: 0.5.0
+      occt: 0.1.0
+      geoml: 0.1.0
+    modules:
+      helpers: |
+        function make_shell(f1, f2, f3, f4, f5)
+          local shell = occt.TopoDS_Shell.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeShell(shell)
+          builder:Add(shell, f1)
+          builder:Add(shell, f2)
+          builder:Add(shell, f3)
+          builder:Add(shell, f4)
+          builder:Add(shell, f5)
+          return shell
+        end
+
+        function make_solid(shell)
+          local solid = occt.TopoDS_Solid.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeSolid(solid)
+          builder:Add(solid, shell)
+          return solid
+        end
+
+        -- Geom_Curve:D1(u, point&, vec&) and gp_Vec:Reverse() both mutate their own
+        -- out-params/receiver - unreliable in the decorated steps: environment (lazy,
+        -- pull-based evaluation never runs a mutating call whose own result goes
+        -- unread), same category as load_carrier.grr.yml's own BRep_Builder sequences.
+        -- reverse_tangent, if true, matches the original's own tangent_vector:Reverse()
+        -- (the nose profile curve's start tangent needs to point the other way to seed
+        -- the arc in the right direction; the nose cap's own tangent does not).
+        --
+        -- Two separate single-return functions, not one function returning both point
+        -- and tangent: a module function's multiple return values don't both survive
+        -- a `a, b = helpers.fn(...)` assignment in the decorated steps: environment
+        -- (confirmed empirically - the second one came back `nil`) - a real, separate
+        -- quirk from the mutating-call laziness issue above. D1 is cheap to call twice.
+        function point_at(curve, param)
+          local point = occt.gp_Pnt.new(0.0, 0.0, 0.0)
+          local tangent = occt.gp_Vec.new(0.0, 0.0, 0.0)
+          curve:D1(param, point, tangent)
+          return point
+        end
+
+        function tangent_at(curve, param, reverse_tangent)
+          local point = occt.gp_Pnt.new(0.0, 0.0, 0.0)
+          local tangent = occt.gp_Vec.new(0.0, 0.0, 0.0)
+          curve:D1(param, point, tangent)
+          if reverse_tangent then
+            tangent:Reverse()
+          end
+          return tangent
+        end
+
+        -- :as(Type) itself turned out to have further sharp edges beyond the
+        -- already-documented geoml::Shape segfault (see DESIGN.md's airplane_seats
+        -- entry) - using it here on profile_curve_cylinder/arc_b_spline_curve
+        -- corrupted an unrelated, already-built lazy value elsewhere in the same
+        -- recipe graph (rear_srf_poles's own occt.gp_Pnt.as_vec(...) call started
+        -- failing with "no matching function call", confirmed by removing the
+        -- unrelated :as() calls and watching the error disappear). Querying
+        -- FirstParameter/LastParameter from inside a module function instead -
+        -- exactly like point_at/tangent_at above already do for D1 - sidesteps the
+        -- whole problem: no :as() needed anywhere in this recipe.
+        function first_parameter(curve)
+          return curve:FirstParameter()
+        end
+
+        function last_parameter(curve)
+          return curve:LastParameter()
+        end
+
+        -- Geom_BSplineSurface:ExchangeUV() mutates self in place too, same laziness
+        -- hazard as tangent_at above - calling it as a bare statement would silently
+        -- never run. Returning self forces the decorated environment to actually read
+        -- the mutation.
+        function exchange_uv(srf)
+          srf:ExchangeUV()
+          return srf
+        end
+    steps: |
+      -- Mid part: 2-point linear profile curve revolved around the X axis.
+      start_point_profile = occt.gp_Pnt.new(7000.0, 0.0, 2000.0)
+      end_point_profile = occt.gp_Pnt.new(23000.0, 0.0, 2000.0)
+      profile_points_cylinder = occt.gp_Pnt.as_vec(start_point_profile, end_point_profile)
+      weights_profile = occt.real_vec(1.0, 1.0)
+      knots_profile = occt.real_vec(0.0, 1.0)
+      mults_profile = occt.int_vec(2, 2)
+      profile_curve_cylinder = geoml.nurbs_curve(profile_points_cylinder, weights_profile, knots_profile, mults_profile, 1)
+
+      rot_axis = occt.gp_Ax1.new(occt.gp_Pnt.new(0.0, 0.0, 0.0), occt.gp_Dir.new(1.0, 0.0, 0.0))
+      surf_of_rev_cylinder = occt.Geom_SurfaceOfRevolution.new(profile_curve_cylinder, rot_axis)
+      fuselage_cylinder = occt.GeomConvert_SurfaceToBSplineSurface(surf_of_rev_cylinder)
+
+      -- Rear part: 5 columns (6 poles each, the periodic circumferential direction)
+      -- stacked along a clamped lengthwise direction.
+      cp_col_1 = fuselage_cylinder:Pole(1, 2)
+      cp_col_2 = fuselage_cylinder:Pole(2, 2)
+      cp_col_3 = fuselage_cylinder:Pole(3, 2)
+      cp_col_4 = fuselage_cylinder:Pole(4, 2)
+      cp_col_5 = fuselage_cylinder:Pole(5, 2)
+      cp_col_6 = fuselage_cylinder:Pole(6, 2)
+
+      move_vec = occt.gp_Vec.new(1.0, 0.0, 0.0)
+      m1_1 = geoml.translate(cp_col_1, move_vec, 2500.0)
+      m1_2 = geoml.translate(cp_col_2, move_vec, 2500.0)
+      m1_3 = geoml.translate(cp_col_3, move_vec, 2500.0)
+      m1_4 = geoml.translate(cp_col_4, move_vec, 2500.0)
+      m1_5 = geoml.translate(cp_col_5, move_vec, 2500.0)
+      m1_6 = geoml.translate(cp_col_6, move_vec, 2500.0)
+
+      m2_1 = geoml.translate(m1_1, move_vec, 3000.0)
+      m2_2 = geoml.translate(m1_2, move_vec, 3000.0)
+      m2_3 = geoml.translate(m1_3, move_vec, 3000.0)
+      m2_4 = geoml.translate(m1_4, move_vec, 3000.0)
+      m2_5 = geoml.translate(m1_5, move_vec, 3000.0)
+      m2_6 = geoml.translate(m1_6, move_vec, 3000.0)
+
+      sl_pt_1 = occt.gp_Pnt.new(31500.0, 0.0, 1992.0)
+      sl_pt_2 = occt.gp_Pnt.new(31500.0, -3464.0, 1992.0)
+      sl_pt_3 = occt.gp_Pnt.new(31500.0, -1732.0, -679.0)
+      sl_pt_4 = occt.gp_Pnt.new(31500.0, 0.0, -3350.0)
+      sl_pt_5 = occt.gp_Pnt.new(31500.0, 1732.0, -679.0)
+      sl_pt_6 = occt.gp_Pnt.new(31500.0, 3464.0, 1992.0)
+
+      l_pt_1 = occt.gp_Pnt.new(37500.0, 0.0, 1337.0)
+      l_pt_2 = occt.gp_Pnt.new(37500.0, -631.0, 1337.0)
+      l_pt_3 = occt.gp_Pnt.new(37500.0, -316.0, 795.0)
+      l_pt_4 = occt.gp_Pnt.new(37500.0, 0.0, 254.0)
+      l_pt_5 = occt.gp_Pnt.new(37500.0, 316.0, 795.0)
+      l_pt_6 = occt.gp_Pnt.new(37500.0, 631.0, 1337.0)
+
+      rear_srf_poles = occt.gp_Pnt.as_vec(
+        cp_col_1, m1_1, m2_1, sl_pt_1, l_pt_1,
+        cp_col_2, m1_2, m2_2, sl_pt_2, l_pt_2,
+        cp_col_3, m1_3, m2_3, sl_pt_3, l_pt_3,
+        cp_col_4, m1_4, m2_4, sl_pt_4, l_pt_4,
+        cp_col_5, m1_5, m2_5, sl_pt_5, l_pt_5,
+        cp_col_6, m1_6, m2_6, sl_pt_6, l_pt_6
+      )
+      rear_srf_weights = occt.real_vec(
+        1.0, 1.0, 1.0, 1.0, 1.0,
+        0.5, 0.5, 0.5, 0.5, 0.5,
+        1.0, 1.0, 1.0, 1.0, 1.0,
+        0.5, 0.5, 0.5, 0.5, 0.5,
+        1.0, 1.0, 1.0, 1.0, 1.0,
+        0.5, 0.5, 0.5, 0.5, 0.5
+      )
+      knots_U = occt.real_vec(0.0, 1.0, 2.0, 3.0)
+      knots_V = occt.real_vec(0.0, 1.0)
+      mults_U = occt.int_vec(2, 2, 2, 2)
+      mults_V = occt.int_vec(5, 5)
+
+      rear_surface = occt.Geom_BSplineSurface.new(rear_srf_poles, 6, 5, rear_srf_weights, 6, 5, knots_U, knots_V, mults_U, mults_V, 2, 4, true)
+
+      -- Rear cap: last column (l_pt_*) plus 6 copies of their own average point.
+      ovl_pt = occt.gp_Pnt.new(37500.0, 0.0, (1337.0 + 795.0 + 795.0) / 3.0)
+
+      rear_cap_poles = occt.gp_Pnt.as_vec(
+        l_pt_1, ovl_pt,
+        l_pt_2, ovl_pt,
+        l_pt_3, ovl_pt,
+        l_pt_4, ovl_pt,
+        l_pt_5, ovl_pt,
+        l_pt_6, ovl_pt
+      )
+      rear_cap_weights = occt.real_vec(
+        1.0, 1.0,
+        0.5, 0.5,
+        1.0, 1.0,
+        0.5, 0.5,
+        1.0, 1.0,
+        0.5, 0.5
+      )
+      cap_knots_V = occt.real_vec(0.0, 1.0)
+      cap_mults_V = occt.int_vec(2, 2)
+
+      rear_surface_cap = occt.Geom_BSplineSurface.new(rear_cap_poles, 6, 2, rear_cap_weights, 6, 2, knots_U, cap_knots_V, mults_U, cap_mults_V, 2, 1, true)
+
+      -- Nose: a circular arc tangent to the cylinder's own start point/tangent,
+      -- revolved around the same axis.
+      end_point_arc = occt.gp_Pnt.new(2000.0, 0.0, 1000.0)
+      start_param = helpers.first_parameter(profile_curve_cylinder)
+      start_point_arc = helpers.point_at(profile_curve_cylinder, start_param)
+      tangent_vector = helpers.tangent_at(profile_curve_cylinder, start_param, true)
+
+      arc_maker = occt.GC_MakeArcOfCircle.new(start_point_arc, tangent_vector, end_point_arc)
+      circular_arc = arc_maker:Value()
+      arc_b_spline_curve = occt.GeomConvert_CurveToBSplineCurve(circular_arc)
+
+      surf_of_rev_nose = occt.Geom_SurfaceOfRevolution.new(arc_b_spline_curve, rot_axis)
+      nose_ogive_srf = helpers.exchange_uv(occt.GeomConvert_SurfaceToBSplineSurface(surf_of_rev_nose))
+
+      -- Nose cap: a tangent-continued cubic profile curve, also revolved.
+      end_point_arc_cap = occt.gp_Pnt.new(1000.0, 0.0, 0.0)
+      start_param_cap = helpers.last_parameter(arc_b_spline_curve)
+      start_point_arc_cap = helpers.point_at(arc_b_spline_curve, start_param_cap)
+      tangent_vector_cap = helpers.tangent_at(arc_b_spline_curve, start_param_cap, false)
+
+      cp_cap_2 = geoml.translate(start_point_arc_cap, tangent_vector_cap, 0.04)
+      cp_cap_3 = geoml.translate(end_point_arc_cap, occt.gp_Vec.new(0.0, 0.0, 1.0), 550.0)
+
+      profile_points_cap = occt.gp_Pnt.as_vec(start_point_arc_cap, cp_cap_2, cp_cap_3, end_point_arc_cap)
+      weights_profile_cap = occt.real_vec(1.0, 1.0, 1.0, 1.0)
+      knots_profile_cap = occt.real_vec(0.0, 1.0)
+      mults_profile_cap = occt.int_vec(4, 4)
+      profile_curve_cap = geoml.nurbs_curve(profile_points_cap, weights_profile_cap, knots_profile_cap, mults_profile_cap, 3)
+
+      surf_of_rev_nose_cap = occt.Geom_SurfaceOfRevolution.new(profile_curve_cap, rot_axis)
+      nose_ogive_cap_srf = helpers.exchange_uv(occt.GeomConvert_SurfaceToBSplineSurface(surf_of_rev_nose_cap))
+
+      -- Build faces, shell, solid.
+      tol = 1e1
+      face_cylinder = occt.BRepBuilderAPI_MakeFace.new(fuselage_cylinder, tol):Face()
+      face_rear = occt.BRepBuilderAPI_MakeFace.new(rear_surface, tol):Face()
+      face_nose_cap = occt.BRepBuilderAPI_MakeFace.new(nose_ogive_cap_srf, tol):Face()
+      face_nose = occt.BRepBuilderAPI_MakeFace.new(nose_ogive_srf, tol):Face()
+      face_rear_cap = occt.BRepBuilderAPI_MakeFace.new(rear_surface_cap, tol):Face()
+
+      shell_fuselage = helpers.make_shell(face_cylinder, face_rear, face_nose_cap, face_nose, face_rear_cap)
+      solid_fuselage = helpers.make_solid(shell_fuselage)
+  main_wing:
+    uses:
+      grunk: 0.5.0
+      occt: 0.1.0
+      geoml: 0.1.0
+    modules:
+      helpers: |
+        function make_shell4(f1, f2, f3, f4)
+          local shell = occt.TopoDS_Shell.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeShell(shell)
+          builder:Add(shell, f1)
+          builder:Add(shell, f2)
+          builder:Add(shell, f3)
+          builder:Add(shell, f4)
+          return shell
+        end
+
+        function make_solid(shell)
+          local solid = occt.TopoDS_Solid.new()
+          local builder = occt.BRep_Builder.new()
+          builder:MakeSolid(solid)
+          builder:Add(solid, shell)
+          return solid
+        end
+
+        function exchange_uv(srf)
+          srf:ExchangeUV()
+          return srf
+        end
+    steps: |
+      -- Literal airfoil-station point data, verbatim from the original
+      -- (fuselage_wing_configuration.cpp's own i_u_pc_*/m_u_pc_*/o_u_pc_*/i_l_pc_*/
+      -- m_l_pc_*/o_l_pc_* literals - 2 points dropped from the inner/outer-upper
+      -- stations in the original itself, commented out there, not dropped here).
+      i_u_pc_1 = occt.gp_Pnt.new(12743.744, -1875.046, -1242.3)
+      i_u_pc_3 = occt.gp_Pnt.new(12744.907, -1875.046, -1192.336)
+      i_u_pc_4 = occt.gp_Pnt.new(12780.961, -1875.046, -1085.249)
+      i_u_pc_5 = occt.gp_Pnt.new(12922.121, -1875.046, -981.973)
+      i_u_pc_6 = occt.gp_Pnt.new(13134.59, -1875.046, -914.366)
+      i_u_pc_7 = occt.gp_Pnt.new(13412.355, -1875.046, -882.808)
+      i_u_pc_8 = occt.gp_Pnt.new(13751.543, -1875.046, -872.338)
+      i_u_pc_9 = occt.gp_Pnt.new(14145.044, -1875.046, -881.43)
+      i_u_pc_10 = occt.gp_Pnt.new(14582.641, -1875.046, -908.641)
+      i_u_pc_11 = occt.gp_Pnt.new(15052.873, -1875.046, -946.113)
+      i_u_pc_12 = occt.gp_Pnt.new(15543.057, -1875.046, -990.982)
+      i_u_pc_13 = occt.gp_Pnt.new(16039.909, -1875.046, -1040.433)
+      i_u_pc_14 = occt.gp_Pnt.new(16529.885, -1875.046, -1093.018)
+      i_u_pc_15 = occt.gp_Pnt.new(16999.603, -1875.046, -1148.158)
+      i_u_pc_16 = occt.gp_Pnt.new(17436.043, -1875.046, -1206.562)
+      i_u_pc_17 = occt.gp_Pnt.new(17827.393, -1875.046, -1266.624)
+      i_u_pc_18 = occt.gp_Pnt.new(18162.459, -1875.046, -1324.558)
+      i_u_pc_19 = occt.gp_Pnt.new(18433.527, -1875.046, -1376.16)
+      i_u_pc_20 = occt.gp_Pnt.new(18666.664, -1875.046, -1423.234)
+      i_u_pc_22 = occt.gp_Pnt.new(18815.763, -1875.046, -1454.34)
+      i_u_profile_curve_points_initial = occt.gp_Pnt.as_vec(i_u_pc_1, i_u_pc_3, i_u_pc_4, i_u_pc_5, i_u_pc_6, i_u_pc_7, i_u_pc_8, i_u_pc_9, i_u_pc_10, i_u_pc_11, i_u_pc_12, i_u_pc_13, i_u_pc_14, i_u_pc_15, i_u_pc_16, i_u_pc_17, i_u_pc_18, i_u_pc_19, i_u_pc_20, i_u_pc_22)
+      m_u_pc_1 = occt.gp_Pnt.new(15081.173, -6340.33, -933.025)
+      m_u_pc_3 = occt.gp_Pnt.new(15081.892, -6340.33, -902.118)
+      m_u_pc_4 = occt.gp_Pnt.new(15104.195, -6340.33, -835.873)
+      m_u_pc_5 = occt.gp_Pnt.new(15191.517, -6340.33, -771.987)
+      m_u_pc_6 = occt.gp_Pnt.new(15322.95, -6340.33, -730.165)
+      m_u_pc_7 = occt.gp_Pnt.new(15494.776, -6340.33, -710.643)
+      m_u_pc_8 = occt.gp_Pnt.new(15704.597, -6340.33, -704.166)
+      m_u_pc_9 = occt.gp_Pnt.new(15948.017, -6340.33, -709.791)
+      m_u_pc_10 = occt.gp_Pnt.new(16218.715, -6340.33, -726.624)
+      m_u_pc_11 = occt.gp_Pnt.new(16509.6, -6340.33, -749.804)
+      m_u_pc_12 = occt.gp_Pnt.new(16812.828, -6340.33, -777.56)
+      m_u_pc_13 = occt.gp_Pnt.new(17120.18, -6340.33, -808.15)
+      m_u_pc_14 = occt.gp_Pnt.new(17423.28, -6340.33, -840.679)
+      m_u_pc_15 = occt.gp_Pnt.new(17713.847, -6340.33, -874.789)
+      m_u_pc_16 = occt.gp_Pnt.new(17983.829, -6340.33, -910.917)
+      m_u_pc_17 = occt.gp_Pnt.new(18225.918, -6340.33, -948.072)
+      m_u_pc_18 = occt.gp_Pnt.new(18433.19, -6340.33, -983.91)
+      m_u_pc_19 = occt.gp_Pnt.new(18600.873, -6340.33, -1015.831)
+      m_u_pc_20 = occt.gp_Pnt.new(18745.091, -6340.33, -1044.951)
+      m_u_pc_22 = occt.gp_Pnt.new(18837.323, -6340.33, -1064.193)
+      m_u_profile_curve_points = occt.gp_Pnt.as_vec(m_u_pc_1, m_u_pc_3, m_u_pc_4, m_u_pc_5, m_u_pc_6, m_u_pc_7, m_u_pc_8, m_u_pc_9, m_u_pc_10, m_u_pc_11, m_u_pc_12, m_u_pc_13, m_u_pc_14, m_u_pc_15, m_u_pc_16, m_u_pc_17, m_u_pc_18, m_u_pc_19, m_u_pc_20, m_u_pc_22)
+      o_u_pc_1 = occt.gp_Pnt.new(20642.041, -16963.479, -197.243)
+      o_u_pc_3 = occt.gp_Pnt.new(20642.328, -16963.479, -184.942)
+      o_u_pc_4 = occt.gp_Pnt.new(20651.204, -16963.479, -158.577)
+      o_u_pc_5 = occt.gp_Pnt.new(20685.958, -16963.479, -133.151)
+      o_u_pc_6 = occt.gp_Pnt.new(20738.268, -16963.479, -116.506)
+      o_u_pc_7 = occt.gp_Pnt.new(20806.653, -16963.479, -108.736)
+      o_u_pc_8 = occt.gp_Pnt.new(20890.161, -16963.479, -106.158)
+      o_u_pc_9 = occt.gp_Pnt.new(20987.041, -16963.479, -108.397)
+      o_u_pc_10 = occt.gp_Pnt.new(21094.778, -16963.479, -115.096)
+      o_u_pc_11 = occt.gp_Pnt.new(21210.549, -16963.479, -124.322)
+      o_u_pc_12 = occt.gp_Pnt.new(21331.232, -16963.479, -135.369)
+      o_u_pc_13 = occt.gp_Pnt.new(21453.557, -16963.479, -147.543)
+      o_u_pc_14 = occt.gp_Pnt.new(21574.189, -16963.479, -160.49)
+      o_u_pc_15 = occt.gp_Pnt.new(21689.834, -16963.479, -174.065)
+      o_u_pc_16 = occt.gp_Pnt.new(21797.285, -16963.479, -188.444)
+      o_u_pc_17 = occt.gp_Pnt.new(21893.636, -16963.479, -203.232)
+      o_u_pc_18 = occt.gp_Pnt.new(21976.129, -16963.479, -217.495)
+      o_u_pc_19 = occt.gp_Pnt.new(22042.866, -16963.479, -230.2)
+      o_u_pc_20 = occt.gp_Pnt.new(22100.264, -16963.479, -241.789)
+      o_u_pc_22 = occt.gp_Pnt.new(22136.972, -16963.479, -249.447)
+      o_u_profile_curve_points_initial = occt.gp_Pnt.as_vec(o_u_pc_1, o_u_pc_3, o_u_pc_4, o_u_pc_5, o_u_pc_6, o_u_pc_7, o_u_pc_8, o_u_pc_9, o_u_pc_10, o_u_pc_11, o_u_pc_12, o_u_pc_13, o_u_pc_14, o_u_pc_15, o_u_pc_16, o_u_pc_17, o_u_pc_18, o_u_pc_19, o_u_pc_20, o_u_pc_22)
+      i_l_pc_1 = occt.gp_Pnt.new(12743.744, -1875.046, -1242.3)
+      i_l_pc_2 = occt.gp_Pnt.new(12742.968, -1875.046, -1289.064)
+      i_l_pc_3 = occt.gp_Pnt.new(12772.556, -1875.046, -1381.774)
+      i_l_pc_4 = occt.gp_Pnt.new(12909.179, -1875.046, -1489.265)
+      i_l_pc_5 = occt.gp_Pnt.new(13108.738, -1875.046, -1602.313)
+      i_l_pc_6 = occt.gp_Pnt.new(13383.024, -1875.046, -1682.695)
+      i_l_pc_7 = occt.gp_Pnt.new(13719.716, -1875.046, -1750.54)
+      i_l_pc_8 = occt.gp_Pnt.new(14112.211, -1875.046, -1801.944)
+      i_l_pc_9 = occt.gp_Pnt.new(14549.965, -1875.046, -1835.59)
+      i_l_pc_10 = occt.gp_Pnt.new(15021.479, -1875.046, -1849.277)
+      i_l_pc_11 = occt.gp_Pnt.new(15513.978, -1875.046, -1841.509)
+      i_l_pc_12 = occt.gp_Pnt.new(16014.058, -1875.046, -1809.728)
+      i_l_pc_13 = occt.gp_Pnt.new(16507.719, -1875.046, -1754.291)
+      i_l_pc_14 = occt.gp_Pnt.new(16981.161, -1875.046, -1683.479)
+      i_l_pc_15 = occt.gp_Pnt.new(17421.421, -1875.046, -1611.353)
+      i_l_pc_16 = occt.gp_Pnt.new(17816.545, -1875.046, -1547.528)
+      i_l_pc_17 = occt.gp_Pnt.new(18155.329, -1875.046, -1503.77)
+      i_l_pc_18 = occt.gp_Pnt.new(18429.553, -1875.046, -1477.358)
+      i_l_pc_19 = occt.gp_Pnt.new(18665.042, -1875.046, -1461.521)
+      i_l_pc_20 = occt.gp_Pnt.new(18790.359, -1875.046, -1455.64)
+      i_l_pc_21 = occt.gp_Pnt.new(18815.763, -1875.046, -1454.34)
+      i_l_profile_curve_points_initial = occt.gp_Pnt.as_vec(i_l_pc_1, i_l_pc_2, i_l_pc_3, i_l_pc_4, i_l_pc_5, i_l_pc_6, i_l_pc_7, i_l_pc_8, i_l_pc_9, i_l_pc_10, i_l_pc_11, i_l_pc_12, i_l_pc_13, i_l_pc_14, i_l_pc_15, i_l_pc_16, i_l_pc_17, i_l_pc_18, i_l_pc_19, i_l_pc_20, i_l_pc_21)
+      m_l_pc_1 = occt.gp_Pnt.new(15081.173, -6340.33, -933.025)
+      m_l_pc_2 = occt.gp_Pnt.new(15080.693, -6340.33, -961.953)
+      m_l_pc_3 = occt.gp_Pnt.new(15098.996, -6340.33, -1019.304)
+      m_l_pc_4 = occt.gp_Pnt.new(15183.511, -6340.33, -1085.797)
+      m_l_pc_5 = occt.gp_Pnt.new(15306.958, -6340.33, -1155.729)
+      m_l_pc_6 = occt.gp_Pnt.new(15476.631, -6340.33, -1205.453)
+      m_l_pc_7 = occt.gp_Pnt.new(15684.909, -6340.33, -1247.422)
+      m_l_pc_8 = occt.gp_Pnt.new(15927.706, -6340.33, -1279.221)
+      m_l_pc_9 = occt.gp_Pnt.new(16198.501, -6340.33, -1300.034)
+      m_l_pc_10 = occt.gp_Pnt.new(16490.18, -6340.33, -1308.501)
+      m_l_pc_11 = occt.gp_Pnt.new(16794.84, -6340.33, -1303.695)
+      m_l_pc_12 = occt.gp_Pnt.new(17104.189, -6340.33, -1284.036)
+      m_l_pc_13 = occt.gp_Pnt.new(17409.568, -6340.33, -1249.742)
+      m_l_pc_14 = occt.gp_Pnt.new(17702.439, -6340.33, -1205.938)
+      m_l_pc_15 = occt.gp_Pnt.new(17974.784, -6340.33, -1161.321)
+      m_l_pc_16 = occt.gp_Pnt.new(18219.207, -6340.33, -1121.839)
+      m_l_pc_17 = occt.gp_Pnt.new(18428.779, -6340.33, -1094.77)
+      m_l_pc_18 = occt.gp_Pnt.new(18598.415, -6340.33, -1078.432)
+      m_l_pc_19 = occt.gp_Pnt.new(18744.088, -6340.33, -1068.635)
+      m_l_pc_20 = occt.gp_Pnt.new(18821.609, -6340.33, -1064.997)
+      m_l_pc_21 = occt.gp_Pnt.new(18837.323, -6340.33, -1064.193)
+      m_l_profile_curve_points = occt.gp_Pnt.as_vec(m_l_pc_1, m_l_pc_2, m_l_pc_3, m_l_pc_4, m_l_pc_5, m_l_pc_6, m_l_pc_7, m_l_pc_8, m_l_pc_9, m_l_pc_10, m_l_pc_11, m_l_pc_12, m_l_pc_13, m_l_pc_14, m_l_pc_15, m_l_pc_16, m_l_pc_17, m_l_pc_18, m_l_pc_19, m_l_pc_20, m_l_pc_21)
+      o_l_pc_1 = occt.gp_Pnt.new(20642.041, -16963.479, -197.243)
+      o_l_pc_2 = occt.gp_Pnt.new(20641.85, -16963.479, -208.756)
+      o_l_pc_3 = occt.gp_Pnt.new(20649.135, -16963.479, -231.582)
+      o_l_pc_4 = occt.gp_Pnt.new(20682.771, -16963.479, -258.046)
+      o_l_pc_5 = occt.gp_Pnt.new(20731.903, -16963.479, -285.878)
+      o_l_pc_6 = occt.gp_Pnt.new(20799.432, -16963.479, -305.668)
+      o_l_pc_7 = occt.gp_Pnt.new(20882.326, -16963.479, -322.372)
+      o_l_pc_8 = occt.gp_Pnt.new(20978.958, -16963.479, -335.028)
+      o_l_pc_9 = occt.gp_Pnt.new(21086.733, -16963.479, -343.311)
+      o_l_pc_10 = occt.gp_Pnt.new(21202.82, -16963.479, -346.681)
+      o_l_pc_11 = occt.gp_Pnt.new(21324.073, -16963.479, -344.768)
+      o_l_pc_12 = occt.gp_Pnt.new(21447.193, -16963.479, -336.944)
+      o_l_pc_13 = occt.gp_Pnt.new(21568.732, -16963.479, -323.295)
+      o_l_pc_14 = occt.gp_Pnt.new(21685.293, -16963.479, -305.861)
+      o_l_pc_15 = occt.gp_Pnt.new(21793.686, -16963.479, -288.104)
+      o_l_pc_16 = occt.gp_Pnt.new(21890.965, -16963.479, -272.39)
+      o_l_pc_17 = occt.gp_Pnt.new(21974.373, -16963.479, -261.617)
+      o_l_pc_18 = occt.gp_Pnt.new(22041.888, -16963.479, -255.114)
+      o_l_pc_19 = occt.gp_Pnt.new(22099.865, -16963.479, -251.215)
+      o_l_pc_20 = occt.gp_Pnt.new(22130.718, -16963.479, -249.767)
+      o_l_pc_21 = occt.gp_Pnt.new(22136.972, -16963.479, -249.447)
+      o_l_profile_curve_points_initial = occt.gp_Pnt.as_vec(o_l_pc_1, o_l_pc_2, o_l_pc_3, o_l_pc_4, o_l_pc_5, o_l_pc_6, o_l_pc_7, o_l_pc_8, o_l_pc_9, o_l_pc_10, o_l_pc_11, o_l_pc_12, o_l_pc_13, o_l_pc_14, o_l_pc_15, o_l_pc_16, o_l_pc_17, o_l_pc_18, o_l_pc_19, o_l_pc_20, o_l_pc_21)
+
+      -- Inner/outer stations are translated (mid stations are used as-is) - same
+      -- geoml.translate(points_vec, dir, factor) pattern as the fuselage's own rear
+      -- part, not geoml::move (removed from current geoml, see DESIGN.md).
+      move_vec_i_wing = occt.gp_Vec.new(0.0, 1.0, 0.0)
+      move_vec_o_wing = occt.gp_Vec.new(1.0, 0.0, 0.0)
+
+      i_u_profile_curve_points = geoml.translate(i_u_profile_curve_points_initial, move_vec_i_wing, 1500.0)
+      o_u_profile_curve_points = geoml.translate(o_u_profile_curve_points_initial, move_vec_o_wing, 3000.0)
+      i_l_profile_curve_points = geoml.translate(i_l_profile_curve_points_initial, move_vec_i_wing, 1500.0)
+      o_l_profile_curve_points = geoml.translate(o_l_profile_curve_points_initial, move_vec_o_wing, 3000.0)
+
+      i_u_profile_curve = geoml.interpolate_points_to_b_spline_curve(i_u_profile_curve_points)
+      m_u_profile_curve = geoml.interpolate_points_to_b_spline_curve(m_u_profile_curve_points)
+      o_u_profile_curve = geoml.interpolate_points_to_b_spline_curve(o_u_profile_curve_points)
+      i_l_profile_curve = geoml.interpolate_points_to_b_spline_curve(i_l_profile_curve_points)
+      m_l_profile_curve = geoml.interpolate_points_to_b_spline_curve(m_l_profile_curve_points)
+      o_l_profile_curve = geoml.interpolate_points_to_b_spline_curve(o_l_profile_curve_points)
+
+      -- Leading/trailing guide curves: the inner/outer stations' own first/last
+      -- point (translated, matching i_u_profile_curve_points->Value(1)/Value(20) in
+      -- the original) plus the mid station's own (untranslated) endpoint.
+      i_u_first = geoml.translate(i_u_pc_1, move_vec_i_wing, 1500.0)
+      i_u_last = geoml.translate(i_u_pc_22, move_vec_i_wing, 1500.0)
+      o_u_first = geoml.translate(o_u_pc_1, move_vec_o_wing, 3000.0)
+      o_u_last = geoml.translate(o_u_pc_22, move_vec_o_wing, 3000.0)
+
+      leading_curve_points = occt.gp_Pnt.as_vec(i_u_first, m_u_pc_1, o_u_first)
+      trailing_curve_points = occt.gp_Pnt.as_vec(i_u_last, m_u_pc_22, o_u_last)
+
+      leading_curve = geoml.interpolate_points_to_b_spline_curve(leading_curve_points)
+      trailing_curve = geoml.interpolate_points_to_b_spline_curve(trailing_curve_points)
+
+      -- Upper/lower wing surfaces: a 3-profile curve network, both sharing the SAME
+      -- leading/trailing guide curves (the lower surface reusing the upper's own
+      -- guides is exactly what the original itself does, not a copy-paste slip -
+      -- see fuselage_wing_configuration.cpp:964's own list_of_guides_upper_wing).
+      upper_profiles = occt.Geom_Curve.as_vec(i_u_profile_curve, m_u_profile_curve, o_u_profile_curve)
+      wing_guides = occt.Geom_Curve.as_vec(leading_curve, trailing_curve)
+      lower_profiles = occt.Geom_Curve.as_vec(i_l_profile_curve, m_l_profile_curve, o_l_profile_curve)
+
+      upper_wing_surface = helpers.exchange_uv(geoml.interpolate_curve_network(upper_profiles, wing_guides, 1.0))
+      lower_wing_surface = geoml.interpolate_curve_network(lower_profiles, wing_guides, 1.0)
+
+      inner_cap_edges = occt.Geom_Curve.as_vec(i_u_profile_curve, i_l_profile_curve)
+      outer_cap_edges = occt.Geom_Curve.as_vec(o_u_profile_curve, o_l_profile_curve)
+      inner_wing_cap_surface = geoml.interpolate_curves(inner_cap_edges)
+      outer_wing_cap_surface = helpers.exchange_uv(geoml.interpolate_curves(outer_cap_edges))
+
+      tol = 1e1
+      face_upper = occt.BRepBuilderAPI_MakeFace.new(upper_wing_surface, tol):Face()
+      face_lower = occt.BRepBuilderAPI_MakeFace.new(lower_wing_surface, tol):Face()
+      face_inner_cap = occt.BRepBuilderAPI_MakeFace.new(inner_wing_cap_surface, tol):Face()
+      face_outer_cap = occt.BRepBuilderAPI_MakeFace.new(outer_wing_cap_surface, tol):Face()
+
+      shell_wing = helpers.make_shell4(face_upper, face_lower, face_inner_cap, face_outer_cap)
+      solid_wing = helpers.make_solid(shell_wing)
+steps: |
+  fuselage_solid = recipes.fuselage():get("solid_fuselage")
+  wing_solid = recipes.main_wing():get("solid_wing")
+  fused = occt.BRepAlgoAPI_Fuse.new(wing_solid, fuselage_solid):Shape()
+  ok = occt.export_brep(fused, "wing_fuselage_configuration.brep")
+outputs:
+  fused: fused
+  ok: ok

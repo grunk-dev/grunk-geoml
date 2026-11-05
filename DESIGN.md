@@ -745,7 +745,8 @@ genuinely different APIs with different Lua-visibility rules. Worth fixing
 a code bug) - not done here.
 
 `wing_fuselage_configuration` (the larger geometry-focused rewrite) remains the
-last piece of Step 6, not done here.
+last piece of Step 6, not done here. **Done now - see "Step 6 completed:
+wing_fuselage_configuration" below.**
 
 ## `load_carrier`/`wing_loft`: real line-by-line re-port (2026-09-29)
 
@@ -1374,3 +1375,132 @@ all 4 existing recipes plus `ad_translate.grr.yml` (primal-only, `adolc` is
 finite-difference re-evaluation of the same recipe exactly - the first time an
 AD value has been shown to survive a real `occt.*` → `geoml.*` → `occt.*` round
 trip through actual Lua recipe code, not just a direct C++ call.
+
+## Step 6 completed: `wing_fuselage_configuration` (2026-11-05)
+
+The last unstarted piece of Step 6 - ported from the same original
+(`/localdata2/klei_j0/code/geoml`'s git history, commit
+`07696a431f909795332d1fd677344a5b75502f44`, `examples/fuselage_wing_configuration.cpp`)
+`load_carrier.grr.yml`/`wing_loft.grr.yml` already trace back to, but its own much
+larger fuselage/wing section (~1500 lines of hand-built B-spline surfaces),
+deliberately saved for last. Full, faithful line-by-line re-port, at the user's
+explicit request structured as two `recipes:` sub-recipes rather than one flat
+`steps:` block:
+
+- **`fuselage`**: mid cylinder (2-point linear profile curve revolved around the
+  X axis) → rear B-spline surface (5 columns of 6 poles each, stacked along a
+  clamped lengthwise direction - see below) + a degenerate "rear cap" surface →
+  nose ogive (a circular arc tangent to the cylinder's own start point/tangent,
+  revolved) + its own tangent-continued cap → 5 faces sewn into a shell → solid.
+- **`main_wing`**: 6 literal airfoil-station point sets (inner/mid/outer, upper
+  and lower, ~20 points each, copied verbatim from the original including its
+  own 2 commented-out points per inner/outer-upper station) → one
+  `interpolate_points_to_b_spline_curve` per station → a shared pair of
+  leading/trailing guide curves (built from the inner/outer stations' own
+  translated endpoints plus the untranslated mid-station endpoint) →
+  `interpolate_curve_network` for the upper AND lower surfaces (the lower
+  surface reusing the upper's own guide curves - confirmed this is what the
+  *original* itself does, line 964's own `list_of_guides_upper_wing` reused
+  verbatim, not a copy-paste mistake introduced here) → 2 end caps via
+  `interpolate_curves` → 4 faces sewn into a shell → solid.
+
+The outer `steps:` fuses the two solids with a single `BRepAlgoAPI_Fuse`, the
+same `recipes.<name>():get(...)` composition mechanism
+`gasturbine_cavity_update.grr.yml` already demonstrates.
+
+**The original's own `geoml::` API has moved on entirely** - `b_spline_curve`,
+`b_spline_surface`, `revolving_surface`, `move`, `extract_control_point_column_row`,
+and `create_point_net_from_arrays` **do not exist anywhere in the currently
+pinned geoml** (confirmed by grepping `.deps/geoml/include/geoml/` directly, not
+assumed from memory). Modern equivalents, each verified empirically against the
+original's own literal numeric data rather than assumed correct from reading
+alone:
+- `geoml::b_spline_curve` → `geoml.nurbs_curve` (same function, already used
+  elsewhere in this plugin).
+- `geoml::b_spline_surface` → **no geoml-level equivalent at all**. Modern
+  geoml's own `nurbs_surface` takes an `Array2d<gp_Pnt>`/`Array2d<Standard_Real>`
+  (`geoml/data_structures/Array2d.h`), but this plugin's own
+  `generated/data_structures.cpp` has a completely empty
+  `register_data_structures()` - `Array2d<T>` is parsed by the generator but has
+  zero Lua bindings. Not a blocker: grunk-occt's own native
+  `occt.Geom_BSplineSurface.new(poles_flat, rows, cols, weights_flat, w_rows,
+  w_cols, UKnots, VKnots, UMults, VMults, UDegree, VDegree, UPeriodic)`
+  constructor (already fully registered) builds the identical surface directly.
+  The `rows`/`cols` ↔ U/V/periodic-direction mapping was derived **empirically**,
+  not assumed: a minimal 2×3 test surface with distinguishable pole coordinates
+  confirmed `Pole(u, v)` addresses `poles_flat` in row-major U-then-V order with
+  `rows` = U count, `cols` = V count; for the rear surface specifically, the
+  periodic-pole-count formula (`NbPoles = Sum(Mults) - Mults(1)` for a periodic
+  direction) showed the 6-point-per-column direction (the fuselage's own
+  circumferential/rotational direction, inherited from the cylinder's own
+  periodic U) had to be U, and the 5-column lengthwise direction V - the
+  opposite of what the variable names alone suggested - confirmed by
+  constructing it both ways and checking which one OCCT accepted *and* which
+  one's `Pole()` values matched the known literal input points.
+- `geoml::revolving_surface(curve, axis)` → the native
+  `occt.Geom_SurfaceOfRevolution.new(curve, axis)` +
+  `occt.GeomConvert_SurfaceToBSplineSurface(...)` pair (both independently
+  registered in grunk-occt, confirmed to compose correctly together).
+- `geoml::move` → `geoml.translate` (same function, already used elsewhere,
+  both the single-`gp_Pnt` and `std::vector<gp_Pnt>` overloads).
+- `geoml::extract_control_point_column_row`/`geoml::create_point_net_from_arrays`
+  have no modern replacement at all (removed outright, not renamed) but needed
+  none: built directly from `Geom_BSplineSurface:Pole(u, v)` (already registered)
+  and plain point lists.
+
+**Two new, previously-undocumented recipe-environment quirks**, both found
+while wiring the fuselage sub-recipe's nose section and both documented inline
+at their own call sites:
+- `:as(Type)`, already known to have a real `geoml::Shape`-specific segfault
+  (see "airplane_seats: real line-by-line re-port" above), has a *separate*
+  sharp edge too: calling it on `profile_curve_cylinder`/`arc_b_spline_curve`
+  (both needed for `:FirstParameter()`/`:D1()` method calls) corrupted an
+  entirely unrelated, already-built lazy value elsewhere in the same recipe
+  graph - `rear_srf_poles`'s own `occt.gp_Pnt.as_vec(...)` call started failing
+  with "no matching function call", and the error disappeared completely once
+  the unrelated `:as()` calls were removed. Worked around by moving every
+  native-type-dependent call (`FirstParameter`/`LastParameter`/`D1`) into
+  `modules:` helper functions instead (module code runs outside the decorated
+  environment, so no `:as()` is needed there at all) - the same general
+  "push it into a module" strategy `airplane_seats.grr.yml` already established
+  for a different reason.
+- A `modules:` function's multiple return values don't both survive a
+  `a, b = helpers.fn(...)` multi-assignment in the decorated `steps:`
+  environment - the second one silently comes back `nil` (confirmed directly:
+  `tangent_at`'s own gp_Vec result was nil until split into two separate
+  single-return functions, `point_at`/`tangent_at`, each calling the cheap `D1`
+  independently).
+
+**Deliberately not ported**: the original's own dead horizontal-tail
+("Hoehenleitwerk")/vertical-tail ("Seitenleitwerk") computation (~440 lines,
+building several more B-spline surfaces) - confirmed, by reading all the way to
+the original's own final assembly, that none of these surfaces' outputs are
+ever consumed by the final shape at all. Omitting it loses no faithfulness to
+the real output geometry; it was dead code in the original too.
+
+**Not run under `-e ad`**: `geoml.nurbs_curve`'s own `std::vector<Standard_Real>`
+weights/knots parameters (`generated/curves.cpp`) are not dual-emitted for AD
+the way scalar `Standard_Real` parameters are (compare `generated/
+transformations.cpp`'s own `translate`) - they stay `std::vector<Standard_Real>`
+in both builds, which under AD means `std::vector<Standard_Adouble>`.
+`occt.real_vec` (`grunk-occt`'s own `src/vector_extras.hpp`) always builds a
+plain `std::vector<double>` with no AD-aware counterpart exposed to Lua, so the
+fuselage sub-recipe's `geoml.nurbs_curve(..., occt.real_vec(...), ...)` calls
+cannot be made from Lua at all under the AD build - confirmed by trying,
+"sol: no matching function call takes this number of arguments and the
+specified types". A real, separate gap in grunk-occt's own `vector_extras.hpp`,
+not something to paper over here (`wing_fuselage_configuration.grr.yml` is a
+Step 6 port, not part of the AD verification track
+`ad_translate.grr.yml`/`tests/test_ad.cpp` cover) - `examples/run_example.py`
+simply skips this recipe under `-e ad`, with a message explaining why.
+
+**Verified end to end**: both sub-recipes export a well-formed solid
+independently, with bounding boxes matching their own literal input data
+exactly (e.g. the wing's own Y-max of `-375.046` is an exact match to the inner
+station's translated Y coordinate, `-1875.046 + 1500`); the final fused shape's
+own bounding box, `[1000,-16963.5,-4000] - [37500,3464.1,2000]`, is exactly the
+union of the two. `pixi run -e default run_examples` (all 6 recipes, including
+this one) and `pixi run -e default test` (23/23, unaffected) both green from a
+clean state; `pixi run -e ad run_examples` green too, with this recipe's own
+skip message and every other recipe (including `ad_translate.grr.yml`'s real
+derivative check) unaffected.

@@ -85,6 +85,28 @@ the whole point of `grunk-geoml` existing alongside `grunk-occt` (`Handle(X)` va
   "no static type information available" limitation `../DESIGN.md`'s "A second,
   genuine limitation" entry already documents for `modules:` function returns,
   now confirmed to apply to plugin-registered free functions too.
+- `wing_fuselage_configuration.grr.yml` - the largest recipe here by far: a full,
+  faithful re-port of `fuselage_wing_configuration.cpp` (the same original
+  `load_carrier.grr.yml`/`wing_loft.grr.yml` already trace back to, but its own
+  much bigger fuselage/wing section, deliberately tackled last). Two
+  `recipes:` sub-recipes (`fuselage`: mid cylinder -> rear B-spline surface + cap
+  -> nose ogive + cap, all hand-built from literal control nets; `main_wing`: 6
+  literal airfoil-station profiles -> upper/lower curve-network surfaces + 2 end
+  caps), fused into one solid in the outer `steps:`. See the recipe's own top
+  comment for the full old-API-to-modern-geoml mapping (several of the original's
+  own `geoml::` functions - `b_spline_surface`, `revolving_surface`, `move`,
+  `extract_control_point_column_row`, `create_point_net_from_arrays` - no longer
+  exist in current geoml at all, confirmed by grepping `.deps/geoml/include/`
+  directly) and two new, previously-undocumented recipe-environment quirks found
+  while building it: `:as(Type)` corrupting an unrelated lazy value elsewhere in
+  the same recipe graph, and a `modules:` function's multiple return values not
+  surviving a multi-assignment in the decorated `steps:` environment. **Not run
+  under the `-e ad` environment** (`examples/run_example.py` skips it there,
+  with a message explaining why): `geoml.nurbs_curve`'s own
+  `std::vector<Standard_Real>` weights/knots parameters are not dual-emitted for
+  AD the way scalar `Standard_Real` parameters are, and `occt.real_vec` has no
+  AD-portable counterpart exposed to Lua - a real, separate gap in grunk-occt's
+  own `src/vector_extras.hpp`, not something papered over here.
 - `run_example.py` - a small, self-contained example script using grunk's Python
   bindings, adapted from `grunk-occt`'s own script of the same name - loads *both*
   `occt_plugin` and `geoml_plugin` (unlike grunk-occt's own single-plugin version),
@@ -123,10 +145,11 @@ Requires grunk's own Python bindings, same as grunk-occt's own examples - see th
 repo's `examples/README.md` for how to get them if `import grunk` fails.
 
 Each run writes a `.brep` file (`load_carrier.brep`, `wing_loft.brep`,
-`airplane_seats.brep`, `gasturbine_cavity_update.brep`) into the current working
-directory - open any of them in a CAD viewer that reads BREP (e.g. FreeCAD) to
-inspect the result. `ad_translate.grr.yml` writes no file (its outputs are plain
-numbers, not a shape).
+`airplane_seats.brep`, `gasturbine_cavity_update.brep`,
+`wing_fuselage_configuration.brep`) into the current working directory - open any
+of them in a CAD viewer that reads BREP (e.g. FreeCAD) to inspect the result.
+`ad_translate.grr.yml` writes no file (its outputs are plain numbers, not a
+shape).
 
 To also run `ad_translate.grr.yml`'s AD derivative check:
 
