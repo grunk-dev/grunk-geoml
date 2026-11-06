@@ -9,11 +9,13 @@
 #
 # `run_examples` needs grunk-occt's own libocct_plugin.so (examples/run_example.py's
 # own top comment - every recipe here genuinely mixes occt.*/geoml.* calls), which
-# this repo never builds itself. Each job below checks out grunk-occt's own `main`
-# at its current HEAD into `../grunk-occt` (a real sibling checkout, same layout
-# `pixi run run_examples` already expects locally per examples/README.md) and
-# builds it there, cached by that commit SHA so an unchanged grunk-occt doesn't
-# rebuild on every grunk-geoml CI run. **Deferred, not done here**: building a full
+# this repo never builds itself. Each job below `git clone`s grunk-occt's own
+# `main` at its current HEAD into `../grunk-occt` (a real sibling checkout, same
+# layout `pixi run run_examples` already expects locally per examples/README.md -
+# NOT via actions/checkout's own `path:`, which refuses any destination outside
+# $GITHUB_WORKSPACE, confirmed directly in CI) and builds it there, cached by that
+# commit SHA so an unchanged grunk-occt doesn't rebuild on every grunk-geoml CI
+# run. **Deferred, not done here**: building a full
 # sibling checkout (the AD job's own chain in particular: ADOL-C + adOCCT +
 # grunk-occt's own AD build) on every cache miss is real, avoidable CI cost -
 # distributing grunk-occt's own prebuilt plugin binaries (e.g. as GitHub Releases
@@ -79,12 +81,17 @@ jobs:
         shell: bash
         run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
 
+      # actions/checkout refuses any `path` outside $GITHUB_WORKSPACE (confirmed
+      # directly: "Repository path '.../grunk-occt' is not under
+      # '.../grunk-geoml'") - a true sibling checkout (what run_examples' own
+      # `../grunk-occt` relative path needs, see pixi.toml's run_examples task) is
+      # outside that workspace by construction, so a plain `git clone` is used
+      # here instead.
       - name: Checkout grunk-occt (sibling, for run_examples)
-        uses: actions/checkout@v7
-        with:
-          repository: grunk-dev/grunk-occt
-          ref: ${{ steps.occt-sha.outputs.sha }}
-          path: ../grunk-occt
+        shell: bash
+        run: |
+          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling build
         uses: actions/cache@v6
@@ -157,12 +164,13 @@ jobs:
         id: occt-sha
         run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
 
+      # See the stock job's own identical step for why this is a plain `git
+      # clone` and not actions/checkout: that action refuses any `path` outside
+      # $GITHUB_WORKSPACE, which a true sibling checkout is by construction.
       - name: Checkout grunk-occt (sibling, for run_examples)
-        uses: actions/checkout@v7
-        with:
-          repository: grunk-dev/grunk-occt
-          ref: ${{ steps.occt-sha.outputs.sha }}
-          path: ../grunk-occt
+        run: |
+          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling AD build
         uses: actions/cache@v6
