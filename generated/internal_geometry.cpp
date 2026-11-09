@@ -145,7 +145,6 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_constructors(
             [](int deg, int ncp) { return BSplineFit(deg, ncp); }
         )
-        .add_member_function("Curve", [](BSplineFit const& self) -> Handle_Geom_BSplineCurve { return self.Curve(); })
         .add_member_function("GetMaxError", [](BSplineFit& self) -> Standard_Real { return self.GetMaxError(); });
     ns.register_type<CFunctionToBspline, sol::automagic_flags::none>("CFunctionToBspline")
         .add_constructors(

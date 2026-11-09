@@ -411,11 +411,31 @@ modules:
     # consolidated, cross-referenced writeup of all of these (grouped by root cause,
     # with what a real grunk.codegen fix would look like for each) - the single
     # place to check before re-deriving any of this from scratch later.
+    #
+    # BSplineFit::Curve (returns Handle(Geom_BSplineCurve), unused by any example/
+    # test): compiles fine on Linux/macOS, but fails windows-latest CI with a real
+    # MSVC-only sol2 bug - pushing this return value is the ONLY place this plugin's
+    # own generated code returns a bare Handle(Geom_X) whose usertype is actually
+    # registered in grunk-occt's own, separately-compiled TUs, not this plugin's own
+    # (everywhere else this plugin returns a Handle(Geom_X), it's immediately wrapped
+    # - see curves.cpp/surfaces.cpp - never pushed to Lua raw). sol2's generic
+    # "unregistered type" push path (stack_detail::set_undefined_methods_on) tries
+    # to auto-generate default comparison metamethods by SFINAE-probing `T{} < T{}`/
+    # `T{} == T{}` (is_automagical<T>, sol/usertype_core.hpp) - Geom_BSplineCurve
+    # supports neither, and GCC/Clang's SFINAE correctly skips generating them, but
+    # MSVC fails hard instead ("C3889: call to object of class type 'std::less<void>':
+    # no matching call operator found", confirmed directly in CI). Tried disabling
+    # automagic registrations for the type directly (sol::is_automagical<
+    # Geom_BSplineCurve> = false, sol2's own documented escape hatch for exactly
+    # this) - did not fix it on MSVC, root cause not fully isolated beyond the above;
+    # blacklisting is the pragmatic fix for an unused method, not a deliberate
+    # position that the type can never be pushed safely.
     blacklist:
       - SurfaceDirection
       - ConcatDir
       - BSplineFit::Fit
       - BSplineFit::FitOptimal
+      - BSplineFit::Curve
       - InterpolatePointsWithKinks
       - Transformation::Decompose
       - BSplineAlgorithms::getKinkParameters

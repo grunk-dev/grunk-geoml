@@ -76,19 +76,19 @@ jobs:
       - name: Test
         run: pixi run -e default test
 
-      # grunk-occt is a private repo - an unauthenticated `git ls-remote`/`git
-      # clone` fails outright ("repository ... not found" / "could not read
-      # Username", confirmed directly in CI), and `git ls-remote`'s own failure
-      # inside a `$(...)` substitution doesn't fail the enclosing `echo`, so the
-      # original one-liner silently wrote an empty sha instead of erroring - both
-      # fixed here: authenticate via GITHUB_TOKEN (works since grunk-geoml and
-      # grunk-occt share the grunk-dev org) and fail loudly on an empty sha.
+      # grunk-occt is now public (was private - the original "repository ...
+      # not found" failure here is gone), so a plain unauthenticated `git
+      # ls-remote`/`git clone` works - no token needed. `git ls-remote`'s own
+      # failure inside a `$(...)` substitution wouldn't fail the enclosing
+      # `echo` (confirmed directly: silently wrote an empty sha instead of
+      # erroring), so this still fails loudly on an empty sha rather than going
+      # back to that one-liner.
       - name: Get grunk-occt HEAD SHA
         id: occt-sha
         shell: bash
         run: |
           set -euo pipefail
-          sha=$(git ls-remote https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git main | cut -f1)
+          sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt.git main | cut -f1)
           if [ -z "$sha" ]; then
             echo "Could not resolve grunk-occt's main HEAD SHA" >&2
             exit 1
@@ -104,7 +104,7 @@ jobs:
       - name: Checkout grunk-occt (sibling, for run_examples)
         shell: bash
         run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
           git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling build
@@ -180,13 +180,13 @@ jobs:
       - name: Test
         run: pixi run -e ad test
 
-      # See the stock job's own identical step for why both the auth (private
-      # repo) and the empty-sha check are needed here.
+      # See the stock job's own identical step for why the empty-sha check is
+      # needed here (grunk-occt is public now, so no auth is needed either way).
       - name: Get grunk-occt HEAD SHA
         id: occt-sha
         run: |
           set -euo pipefail
-          sha=$(git ls-remote https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git main | cut -f1)
+          sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt.git main | cut -f1)
           if [ -z "$sha" ]; then
             echo "Could not resolve grunk-occt's main HEAD SHA" >&2
             exit 1
@@ -198,7 +198,7 @@ jobs:
       # $GITHUB_WORKSPACE, which a true sibling checkout is by construction.
       - name: Checkout grunk-occt (sibling, for run_examples)
         run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
           git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling AD build
