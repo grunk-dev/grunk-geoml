@@ -76,10 +76,24 @@ jobs:
       - name: Test
         run: pixi run -e default test
 
+      # grunk-occt is a private repo - an unauthenticated `git ls-remote`/`git
+      # clone` fails outright ("repository ... not found" / "could not read
+      # Username", confirmed directly in CI), and `git ls-remote`'s own failure
+      # inside a `$(...)` substitution doesn't fail the enclosing `echo`, so the
+      # original one-liner silently wrote an empty sha instead of erroring - both
+      # fixed here: authenticate via GITHUB_TOKEN (works since grunk-geoml and
+      # grunk-occt share the grunk-dev org) and fail loudly on an empty sha.
       - name: Get grunk-occt HEAD SHA
         id: occt-sha
         shell: bash
-        run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          sha=$(git ls-remote https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git main | cut -f1)
+          if [ -z "$sha" ]; then
+            echo "Could not resolve grunk-occt's main HEAD SHA" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       # actions/checkout refuses any `path` outside $GITHUB_WORKSPACE (confirmed
       # directly: "Repository path '.../grunk-occt' is not under
@@ -90,7 +104,7 @@ jobs:
       - name: Checkout grunk-occt (sibling, for run_examples)
         shell: bash
         run: |
-          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git ../grunk-occt
           git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling build
@@ -122,8 +136,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install autotools
-        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+      - name: Install autotools and X11 dev headers
+        # libx11-dev et al.: adOCCT is a full from-source OCCT build, and
+        # OCCT's own CMakeLists.txt pulls TKService (X11/Xlib.h) in
+        # transitively via DataExchange's own STEP toolkits regardless of
+        # whether Visualization is enabled - see grunk-occt's own
+        # scripts/install_adocct.sh comment for how this was confirmed (same
+        # script, copied verbatim into this repo too).
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool libx11-dev libxmu-dev libxi-dev libxt-dev
 
       - uses: prefix-dev/setup-pixi@v0.10.2
         with:
@@ -160,16 +180,25 @@ jobs:
       - name: Test
         run: pixi run -e ad test
 
+      # See the stock job's own identical step for why both the auth (private
+      # repo) and the empty-sha check are needed here.
       - name: Get grunk-occt HEAD SHA
         id: occt-sha
-        run: echo "sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt main | cut -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          sha=$(git ls-remote https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git main | cut -f1)
+          if [ -z "$sha" ]; then
+            echo "Could not resolve grunk-occt's main HEAD SHA" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       # See the stock job's own identical step for why this is a plain `git
       # clone` and not actions/checkout: that action refuses any `path` outside
       # $GITHUB_WORKSPACE, which a true sibling checkout is by construction.
       - name: Checkout grunk-occt (sibling, for run_examples)
         run: |
-          git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/grunk-dev/grunk-occt.git ../grunk-occt
           git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
       - name: Cache grunk-occt sibling AD build

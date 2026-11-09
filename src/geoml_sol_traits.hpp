@@ -87,6 +87,33 @@ namespace sol {
     struct is_container<geoml::Shape> : std::false_type {};
 }
 
+// Geom_BSplineCurve crosses the plugin boundary here as a bare Handle(T) return
+// value (BSplineFit::Curve, generated/internal_geometry.cpp) whose *own* usertype
+// is only ever actually registered in grunk-occt's own, separately-compiled TUs -
+// from *this* plugin's own TUs' point of view at compile time, sol2 has no
+// evidence it's a "real", already-registered usertype, so stack::push falls back
+// to its generic "unregistered type" path (stack_detail::set_undefined_methods_on,
+// sol/stack_push.hpp), which tries to auto-generate default comparison
+// metamethods (is_automagical<T>::value, sol/usertype_core.hpp) by probing
+// `T{} < T{}`/`T{} == T{}` via std::less<void>/std::equal_to<void> -
+// Geom_BSplineCurve supports neither, and SFINAE is meant to silently skip
+// generating those metamethods in that case (and does, on GCC/Clang - confirmed:
+// this plugin's own ubuntu-latest/macos-latest CI builds this exact file without
+// issue) - but MSVC fails hard instead with "C3889: call to object of class type
+// 'std::less<void>': no matching call operator found" (confirmed directly: this
+// broke windows-latest CI on exactly this file/line). grunk-occt's own Windows
+// build never hits this because Geom_BSplineCurve's usertype *is* visible as
+// "really registered" within grunk-occt's own TUs, taking a different compile-time
+// branch entirely - this is purely a cross-plugin, compile-time-only concern for
+// *this* plugin's own pushes, same category as SOL_BASE_CLASSES below. Disabling
+// automagic default registrations for this type is sol2's own documented escape
+// hatch for exactly this (is_automagical<T>, sol/types.hpp) - this plugin never
+// wanted Lua-side `<`/`==` on a bare curve handle anyway.
+namespace sol {
+    template <>
+    struct is_automagical<Geom_BSplineCurve> : std::false_type {};
+}
+
 // SOL_BASE_CLASSES/SOL_DERIVED_CLASSES for the OCCT Geom_Curve/Geom_Surface family
 // this plugin's own return values actually need (interpolate_points_to_b_spline_curve/
 // nurbs_curve -> Handle(Geom_BSplineCurve); interpolate_curves/interpolate_curve_network
