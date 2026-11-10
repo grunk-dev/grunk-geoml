@@ -26,6 +26,16 @@
 # geoml's own GEOML_USE_ADOLC_MODE default - see install_adgeoml.sh) and
 # 3RDPARTY_ADOLC_DIR are taken directly from grunk-occt's own working build.
 #
+# fontconfig dev headers (libfontconfig1-dev, installed via apt in ci.yml,
+# NOT via this repo's own pixi.toml) are the same story as X11: adOCCT's own
+# adm/cmake/occt_csf.cmake sets CSF_fontconfig to the bare literal
+# "fontconfig" (a plain linker name, no 3RDPARTY_*_DIR/CMAKE_PREFIX_PATH
+# detection, unlike freetype's proper find_package(Freetype)) - so it only
+# ever resolves via the compiler/linker's default *system* search paths. A
+# conda `fontconfig` package was tried first and confirmed NOT to work for
+# this reason (the CI failure was unchanged after adding it) before apt was
+# used instead.
+#
 # BUILD_MODULE_Visualization/ApplicationFramework/Draw=OFF: none of this
 # plugin's own registration source (nor grunk-occt's) touches
 # AIS_*/V3d_*/OpenGl_*/Xw_* (Visualization), OCAF/TDocStd
