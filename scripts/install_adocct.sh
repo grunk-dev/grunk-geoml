@@ -25,6 +25,25 @@
 # time. USE_ADOLC=ON/ADOLC_REVERSE_MODE=OFF (tapeless/forward mode, matching
 # geoml's own GEOML_USE_ADOLC_MODE default - see install_adgeoml.sh) and
 # 3RDPARTY_ADOLC_DIR are taken directly from grunk-occt's own working build.
+#
+# BUILD_MODULE_Visualization/ApplicationFramework/Draw=OFF: none of this
+# plugin's own registration source (nor grunk-occt's) touches
+# AIS_*/V3d_*/OpenGl_*/Xw_* (Visualization), OCAF/TDocStd
+# (ApplicationFramework), or OCCT's own DRAWEXE test harness (Draw) - see
+# grunk-occt/scripts/install_adocct.sh's own, longer comment for the full
+# forensic writeup (X11/TKService stays required via DataExchange regardless
+# of Visualization's flag; TKOpenGl's GL/glx.h requirement does NOT, which is
+# what this flag actually fixes). Pruning these cuts the from-source build
+# down to only what DataExchange/ModelingAlgorithms/ModelingData/
+# FoundationClasses/DETools actually need.
+#
+# Stopgap, not a permanent fix: this module pruning (and the X11 apt
+# dependency in ci.yml) exists only because adOCCT is built from source in
+# CI. Once grunk-occt/adOCCT publish prebuilt binary packages,
+# build-and-test-ad should download those instead of running this script at
+# all, and this entire file (plus the X11 apt-get step in ci.yml) should be
+# deleted rather than kept in sync - see grunk-occt/DESIGN.md's "AD
+# validation milestone" section.
 set -euo pipefail
 
 ROOT="${PIXI_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -61,6 +80,9 @@ cmake -G Ninja \
     -D USE_ADOLC=ON \
     -D ADOLC_REVERSE_MODE=OFF \
     -D 3RDPARTY_ADOLC_DIR="$ADOLC_PREFIX" \
+    -D BUILD_MODULE_Visualization=OFF \
+    -D BUILD_MODULE_ApplicationFramework=OFF \
+    -D BUILD_MODULE_Draw=OFF \
     ..
 ninja install
 
