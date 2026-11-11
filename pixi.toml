@@ -156,12 +156,17 @@ description = "Configure, build, test, test_hooks, and run the examples."
 # run_example.py directly with a different path if you built grunk-occt elsewhere.
 [target.linux-64.tasks]
 run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.so ../grunk-occt/build/libocct_plugin.so", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
+# TEMPORARY - see examples/debug_load_carrier.py's own comment. Remove this task
+# alongside that script once the macos/windows-only load_carrier failure is fixed.
+debug_load_carrier = { cmd = "python examples/debug_load_carrier.py build/libgeoml_plugin.so ../grunk-occt/build/libocct_plugin.so", depends-on = ["build"], description = "TEMPORARY: localize the sol2 overload-resolution failure in load_carrier.grr.yml." }
 
 [target.osx-64.tasks]
 run_examples = { cmd = "python examples/run_example.py build/libgeoml_plugin.dylib ../grunk-occt/build/libocct_plugin.dylib", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
+debug_load_carrier = { cmd = "python examples/debug_load_carrier.py build/libgeoml_plugin.dylib ../grunk-occt/build/libocct_plugin.dylib", depends-on = ["build"], description = "TEMPORARY: localize the sol2 overload-resolution failure in load_carrier.grr.yml." }
 
 [target.win-64.tasks]
 run_examples = { cmd = "python examples/run_example.py build/geoml_plugin.dll ../grunk-occt/build/occt_plugin.dll", depends-on = ["build"], description = "Run the example recipes under examples/ (requires grunk-occt already built as a sibling repo - see examples/README.md)." }
+debug_load_carrier = { cmd = "python examples/debug_load_carrier.py build/geoml_plugin.dll ../grunk-occt/build/occt_plugin.dll", depends-on = ["build"], description = "TEMPORARY: localize the sol2 overload-resolution failure in load_carrier.grr.yml." }
 
 # AD-enabled build/test tasks - same shape as grunk-occt's own [feature.ad.tasks].
 [feature.ad.tasks]

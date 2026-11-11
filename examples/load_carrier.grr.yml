@@ -168,3 +168,34 @@ outputs:
   load_carrier: load_carrier
   ok: ok
   n_faces: n_faces
+  # TEMPORARY, for examples/debug_load_carrier.py - localizing a "sol: no
+  # matching function call" failure seen on macos-latest/windows-latest CI
+  # (not ubuntu-latest) that the real error gives no file/line info for.
+  # Remove these once that's found and fixed - see that script's own comment.
+  c1: c1
+  vec_y: vec_y
+  vec_z: vec_z
+  extr_dir: extr_dir
+  c2: c2
+  c3: c3
+  c4: c4
+  srf: srf
+  extr_vec: extr_vec
+  extruded: extruded
+  center_1: center_1
+  center_2: center_2
+  center_3: center_3
+  center_4: center_4
+  sphere1: sphere1
+  sphere2: sphere2
+  sphere3: sphere3
+  sphere4: sphere4
+  sphere_compound: sphere_compound
+  rounded_box: rounded_box
+  rounded_box_wrapped: rounded_box_wrapped
+  spheres_wrapped: spheres_wrapped
+  cut_shape: cut_shape
+  cut_topods: cut_topods
+  face1: face1
+  face2: face2
+  shell_prelim: shell_prelim
