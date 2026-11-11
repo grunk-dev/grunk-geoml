@@ -41,6 +41,14 @@ using namespace geoml;
 #include "sol_base_classes.hpp"
 
 #include <geoml/naming_choosing/Shape.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -60,7 +68,15 @@ void register_naming_choosing(grunk::plugin_namespace& ns)
     ns.register_type<Shape, sol::automagic_flags::none>("Shape")
         .add_constructors(
             []() { return Shape(); },
-            [](const TopoDS_Shape & theShape) { return Shape(theShape); }
+            [](const TopoDS_Shape & s) { return Shape(s); },
+            [](const TopoDS_CompSolid & s) { return Shape(s); },
+            [](const TopoDS_Compound & s) { return Shape(s); },
+            [](const TopoDS_Edge & s) { return Shape(s); },
+            [](const TopoDS_Face & s) { return Shape(s); },
+            [](const TopoDS_Shell & s) { return Shape(s); },
+            [](const TopoDS_Solid & s) { return Shape(s); },
+            [](const TopoDS_Vertex & s) { return Shape(s); },
+            [](const TopoDS_Wire & s) { return Shape(s); }
         )
         .add_member_function("shape", [](Shape const& self) -> TopoDS_Shape { return self.shape(); })
         .add_member_function("direct_subshapes", [](Shape const& self) -> const std::vector<Shape> & { return self.direct_subshapes(); })

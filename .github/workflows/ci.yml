@@ -128,18 +128,6 @@ jobs:
       - name: Run examples
         run: pixi run -e default run_examples
 
-      # TEMPORARY - see examples/debug_load_carrier.py's own comment. Only runs
-      # when "Run examples" above actually failed (does not change this job's
-      # own pass/fail outcome, which the previous step already determined) -
-      # localizes the macos-latest/windows-latest-only "sol: no matching
-      # function call" failure the real error gives no file/line info for.
-      # Remove this step, that script, and the matching pixi task + extra
-      # outputs in examples/load_carrier.grr.yml once the failing call is
-      # identified and fixed.
-      - name: Debug load_carrier failure (temporary)
-        if: failure()
-        run: pixi run -e default debug_load_carrier
-
       - name: Install
         run: pixi run -e default install
 

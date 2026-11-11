@@ -1504,3 +1504,79 @@ this one) and `pixi run -e default test` (23/23, unaffected) both green from a
 clean state; `pixi run -e ad run_examples` green too, with this recipe's own
 skip message and every other recipe (including `ad_translate.grr.yml`'s real
 derivative check) unaffected.
+
+## `geoml.Shape.new(TopoDS_Compound)` cross-platform sol2 failure: widened constructor overload set (2026-11-11)
+
+`load_carrier.grr.yml` passed on `ubuntu-latest` (GCC) but failed on
+`macos-latest`/`windows-latest` (AppleClang/MSVC) with sol2's own generic
+`"sol: no matching function call takes this number of arguments and the
+specified types"` - no file/line information at all. A temporary diagnostic
+(`examples/debug_load_carrier.py`, extra `outputs:` in `load_carrier.grr.yml`,
+a `debug_load_carrier` pixi task, and a CI step running it only on failure -
+all since removed) queried every intermediate value the recipe's own `steps:`
+compute, in order, and localized the failure to exactly one call:
+`spheres_wrapped = geoml.Shape.new(sphere_compound)`. The step right before it,
+`rounded_box_wrapped = geoml.Shape.new(rounded_box)`, calls the exact same
+constructor and succeeded on every platform - the only difference is that
+`rounded_box` already *is* a `TopoDS_Shape` (from
+`BRepFilletAPI_MakeFillet::Shape()`), while `sphere_compound` is a
+`TopoDS_Compound` (from `helpers.make_compound`, built via
+`BRep_Builder::MakeCompound`).
+
+`geoml::Shape`'s only non-default real constructor takes `TopoDS_Shape const&`
+(`geoml/naming_choosing/Shape.h`). `TopoDS_Compound -> TopoDS_Shape` is a plain,
+non-virtual public base-class relationship, correctly registered in
+grunk-occt's own `generated/sol_base_classes.hpp`
+(`SOL_BASE_CLASSES(TopoDS_Compound, TopoDS_Shape)` /
+`SOL_DERIVED_CLASSES(TopoDS_Shape, ..., TopoDS_Compound, ...)` - pure
+compile-time `sol::base<T>`/`sol::derive<T>` trait specializations, no
+static-init-order dependency, confirmed by reading `sol/forward.hpp`'s own
+macro expansion). So sol2 has to walk that base-class chain at runtime to see
+that a `TopoDS_Compound` userdata satisfies a `TopoDS_Shape const&` parameter -
+and that derived-to-base lookup through a *reference* constructor parameter is
+exactly the restriction this project already has one documented instance of,
+for a different type shape: `hooks.py`'s own `Handle(X)`-by-value
+`emit_param()` override (both here and in grunk-occt) exists because "sol2's
+own base-class-aware ... unique-usertype conversion ... only ever applies to a
+*by-value* parameter" (`qualified_checker`/`qualified_getter` explicitly
+exclude reference parameters from that code path). This is that same sol2
+restriction, hit for a plain value type (`TopoDS_Shape`) instead of a
+`Handle(X)`, and crossing a plugin boundary (the `TopoDS_Compound` userdata is
+pushed by grunk-occt's plugin, consumed by grunk-geoml's `Shape` ctor).
+
+**Fix**: rather than attempt a by-value workaround for `Shape`'s own
+constructor parameter (whose cross-platform safety for a *plain* usertype, as
+opposed to a `Handle(X)` unique-usertype, was never confirmed), `codegen/
+hooks.py`'s `classify_ctor_mode`/`emit_constructor` now special-case the
+`Shape` class by name (`SHAPE_TOPODS_WIDEN_CLASS`/
+`SHAPE_TOPODS_WIDEN_CTOR_MODE`): its real `TopoDS_Shape`-taking constructor is
+widened into one exact-match candidate lambda per concrete `TopoDS_Shape`
+subtype grunk-occt's own `sol_base_classes.hpp` registers (`TopoDS_CompSolid`,
+`TopoDS_Compound`, `TopoDS_Edge`, `TopoDS_Face`, `TopoDS_Shell`,
+`TopoDS_Solid`, `TopoDS_Vertex`, `TopoDS_Wire`), each candidate still calling
+the exact same real `Shape(TopoDS_Shape const&)` constructor via a genuine,
+always-safe C++ implicit upcast - this isn't inventing API surface, only
+giving sol2 an exact type to match per candidate instead of a base-class
+lookup to perform. `codegen/config.yml`'s own `naming_choosing` module gained
+an `extra_includes` entry for the 8 subtype headers (needed by the generated
+lambdas, not by `Shape.h` itself).
+
+**Verified**: regenerated `generated/naming_choosing.cpp` (the only file that
+should change - a stray local `.deps/geoml` build missing the AD-portability
+`Standard_Real` dual-emission entirely caused several *other* modules to
+regenerate differently too; those were discarded, not committed, since they
+reflect a local environment mismatch, not an intended change).
+`pixi run -e default build`/`test` (23/23)/`run_examples` (all 6 recipes,
+including `load_carrier.grr.yml`) all green from a clean state on Linux.
+`codegen/hooks.py`'s own gap this surfaced: `generate_code`'s CMake target only
+ever passes a single `--include-dir ${GEOML_INCLUDE_DIR}`, with no equivalent
+of the plain build's own `GEOML_INTERNAL_INCLUDE_DIRS`/`OpenCASCADE_INCLUDE_DIR`
+- parsing any header that reaches an OCCT header or a `geoml/internal/*` bare
+quoted include fails outright. Not fixed here (regeneration was done via a
+one-off script monkey-patching `build_clang_args()` to add the missing
+`-isystem` dirs) - `generate_code`'s own `CMakeLists.txt` custom_target should
+gain the same include dirs the `geoml_plugin` target itself already gets,
+worth a real fix next time this target needs to run.
+
+Cross-platform CI confirmation (the only check that actually exercises
+AppleClang/MSVC) is still pending as of this entry.

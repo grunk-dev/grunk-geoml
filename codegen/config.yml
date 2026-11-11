@@ -183,6 +183,19 @@ modules:
       - ShapePredicate::ShapePredicate
       - Shape::begin
       - Shape::end
+    # extra_includes: hooks.py's own SHAPE_TOPODS_WIDEN_CLASS widens Shape's real
+    # TopoDS_Shape-taking constructor into one exact-match candidate per concrete
+    # TopoDS_Shape subtype (see that constant's own comment for why) - this header
+    # only needs TopoDS_Shape itself complete, not any of its subtypes.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/naming_choosing/Shape.h
 

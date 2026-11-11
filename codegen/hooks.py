@@ -42,6 +42,42 @@ from grunk.codegen import generate
 # plugin's own idiom to recognize and act on.
 TRANSIENT_ROOT = "Standard_Transient"
 
+# geoml::Shape's own real, single non-default constructor takes a plain
+# `TopoDS_Shape const&` (see geoml/naming_choosing/Shape.h) - geoml's own public
+# API wraps raw OCCT shapes this way throughout. A const-reference parameter
+# whose static type is TopoDS_Shape cannot reliably accept a *derived* TopoDS_*
+# value (TopoDS_Compound, TopoDS_Edge, ...) through sol2's own base-class-aware
+# usertype conversion: confirmed broken via a real CI run (ubuntu-latest/GCC
+# passed, macos-latest/AppleClang and windows-latest/MSVC both failed with
+# sol2's own generic "no matching function call") on exactly this call -
+# load_carrier.grr.yml's geoml.Shape.new(sphere_compound), sphere_compound
+# being a TopoDS_Compound, not a TopoDS_Shape itself. This is the same sol2
+# restriction grunk-occt's own emit_param() Handle(X)-by-value override
+# documents elsewhere ("sol2's own base-class-aware ... conversion ... only
+# ever applies to a *by-value* parameter" - reference parameters are
+# excluded from that code path), just hit here for a plain value type rather
+# than a Handle(X). classify_ctor_mode/emit_constructor below special-case
+# this one class: rather than relying on sol2's own (here unreliable)
+# derived-to-base dispatch for a reference parameter, every concrete
+# TopoDS_Shape subtype grunk-occt's own generated/sol_base_classes.hpp
+# registers (SOL_DERIVED_CLASSES(TopoDS_Shape, ...)) gets its own exact-match
+# constructor candidate, all calling the SAME real Shape(TopoDS_Shape const&)
+# constructor via a genuine, always-safe C++ implicit upcast - this isn't
+# inventing API surface, only giving sol2 an exact type to match per
+# candidate instead of a base-class lookup to perform.
+SHAPE_TOPODS_WIDEN_CLASS = "Shape"
+SHAPE_TOPODS_WIDEN_CTOR_MODE = "shape_topods_subtype_overloads"
+TOPODS_SHAPE_SUBTYPES = (
+    "TopoDS_CompSolid",
+    "TopoDS_Compound",
+    "TopoDS_Edge",
+    "TopoDS_Face",
+    "TopoDS_Shell",
+    "TopoDS_Solid",
+    "TopoDS_Vertex",
+    "TopoDS_Wire",
+)
+
 # The OCCT typedef this plugin's own headers use for a scalar that needs
 # AD-portability dual-emission (see emit_param/emit_callable below) - grunk's own
 # generator has no concept of this at all, only a `real` kind name this file itself
@@ -263,7 +299,15 @@ class Hooks(generate.CodeGenerator):
         # Handle(T)) - grunk's own generator has no notion of this at all,
         # this override is entirely this file's own responsibility (see
         # TRANSIENT_ROOT above).
-        return "handle" if TRANSIENT_ROOT in base_chain else None
+        if TRANSIENT_ROOT in base_chain:
+            return "handle"
+        # See SHAPE_TOPODS_WIDEN_CLASS's own module-level comment above - this
+        # covers BOTH of Shape's real constructors (the zero-arg default and the
+        # TopoDS_Shape one): emit_constructor below tells them apart by
+        # param_decls instead, since this hook only gets the class as a whole.
+        if class_name == SHAPE_TOPODS_WIDEN_CLASS:
+            return SHAPE_TOPODS_WIDEN_CTOR_MODE
+        return None
 
     def emit_bases(self, class_name, chain):
         # .add_bases<...>() only needs the chain up to (and including)
@@ -276,10 +320,26 @@ class Hooks(generate.CodeGenerator):
         return chain
 
     def emit_constructor(self, class_name, ctor_mode, param_decls, args_str):
-        # Only ever called for ctor_mode == "handle" (see classify_ctor_mode
-        # above) - heap-allocate and let geoml_sol_traits.hpp's
-        # sol::unique_usertype_traits<opencascade::handle<T>> bridge the result to
-        # Lua as if it were a T instance.
+        if ctor_mode == SHAPE_TOPODS_WIDEN_CTOR_MODE:
+            # The zero-arg default ctor - left alone, exactly as the built-in
+            # "value" mode would have emitted it.
+            if not param_decls:
+                return f"[]() {{ return {class_name}(); }}"
+            # The real TopoDS_Shape-taking ctor - widened per
+            # SHAPE_TOPODS_WIDEN_CLASS's own comment above. One candidate per
+            # concrete subtype plus the base TopoDS_Shape itself, all calling
+            # the same real constructor.
+            candidates = [f"[](const TopoDS_Shape & s) {{ return {class_name}(s); }}"]
+            candidates += [
+                f"[](const {subtype} & s) {{ return {class_name}(s); }}"
+                for subtype in TOPODS_SHAPE_SUBTYPES
+            ]
+            return ",\n            ".join(candidates)
+        # Only ever called for ctor_mode == "handle" otherwise (see
+        # classify_ctor_mode above) - heap-allocate and let
+        # geoml_sol_traits.hpp's own
+        # sol::unique_usertype_traits<opencascade::handle<T>> bridge the result
+        # to Lua as if it were a T instance.
         return (f"[]({', '.join(param_decls)}) -> opencascade::handle<{class_name}> "
                 f"{{ return opencascade::handle<{class_name}>(new {class_name}({args_str})); }}")
 

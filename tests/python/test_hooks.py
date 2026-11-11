@@ -143,6 +143,16 @@ def test_classify_ctor_mode_transient_base_is_handle():
     assert hooks.classify_ctor_mode("gp_Pnt", []) is None
 
 
+def test_classify_ctor_mode_shape_is_topods_widen():
+    # See hooks.py's own SHAPE_TOPODS_WIDEN_CLASS comment for the "why" - a
+    # TopoDS_Compound/TopoDS_Edge/... passed where Shape's own real ctor takes
+    # `TopoDS_Shape const&` failed sol2's own derived-to-base dispatch on
+    # AppleClang/MSVC (not GCC) in a real CI run.
+    hooks = Hooks()
+    assert hooks.classify_ctor_mode("Shape", []) == hooks_module.SHAPE_TOPODS_WIDEN_CTOR_MODE
+    assert hooks.classify_ctor_mode("ShapePredicate", []) is None
+
+
 def test_emit_bases_truncates_at_transient_root():
     hooks = Hooks()
     chain = ["Geom_Geometry", "Standard_Transient", "Some_InternalMixin"]
@@ -179,6 +189,23 @@ def test_emit_constructor_handle_mode_heap_allocates():
     src = hooks.emit_constructor("Geom_Curve", "handle", [], "")
     assert "opencascade::handle<Geom_Curve>" in src
     assert "new Geom_Curve(" in src
+
+
+def test_emit_constructor_shape_topods_widen_default_ctor_untouched():
+    hooks = Hooks()
+    src = hooks.emit_constructor("Shape", hooks_module.SHAPE_TOPODS_WIDEN_CTOR_MODE, [], "")
+    assert src == "[]() { return Shape(); }"
+
+
+def test_emit_constructor_shape_topods_widen_adds_one_candidate_per_subtype():
+    hooks = Hooks()
+    src = hooks.emit_constructor(
+        "Shape", hooks_module.SHAPE_TOPODS_WIDEN_CTOR_MODE,
+        ["const TopoDS_Shape & theShape"], "theShape",
+    )
+    assert "[](const TopoDS_Shape & s) { return Shape(s); }" in src
+    for subtype in hooks_module.TOPODS_SHAPE_SUBTYPES:
+        assert f"[](const {subtype} & s) {{ return Shape(s); }}" in src
 
 
 def test_emit_return_type_strips_handle_by_reference():
