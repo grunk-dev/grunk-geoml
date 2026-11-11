@@ -108,6 +108,19 @@ translation_units:
 
 modules:
   - name: surfaces
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # revolving_shape's own TopoDS_Shape const& overload - see
+    # internal_boolean_operations's own identical extra_includes comment for
+    # why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/surfaces/surfaces.h
 
@@ -200,6 +213,19 @@ modules:
       - geoml/naming_choosing/Shape.h
 
   - name: predicates
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # is_same's own TopoDS_Shape const& overload - see
+    # internal_boolean_operations's own identical extra_includes comment for
+    # why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/predicates/predicate_functions.h
 
@@ -242,6 +268,19 @@ modules:
     # normally.
     blacklist:
       - Transform::Transform
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # translate's/repeat_shape's own TopoDS_Shape const& overloads - see
+    # internal_boolean_operations's own identical extra_includes comment for
+    # why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/transformations/Transform.h
       - geoml/transformations/transformations.h
@@ -277,10 +316,27 @@ modules:
     # constructor overloads take a const BOPAlgo_PaveFiller& too (also newly
     # accepted by the same fix) - this header only forward-declares it, same
     # completeness need as everything else here.
+    #
+    # TopoDS_*.hxx (CompSolid/Compound/Edge/Face/Shell/Solid/Vertex/Wire):
+    # hooks.py's own generic TopoDS_Shape-widening (see its own
+    # ALL_TOPODS_SHAPE_WIDEN_TYPES comment) now widens every TopoDS_Shape
+    # const& parameter/method this module's own headers declare (e.g.
+    # GEOMAlgo_Splitter::AddTool, BOPBuilderShapeToBRepBuilderShapeAdapter::
+    # Generated/Modified/IsDeleted) into one exact-match candidate per
+    # concrete subtype - each needs its own header complete, same
+    # completeness need as every other extra_includes entry here.
     extra_includes:
       - BRepBuilderAPI_Sewing.hxx
       - BOPAlgo_PaveFiller.hxx
       - geoml/internal/topology/CNamedShape.h
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/internal/boolean_operations/BOPBuilderShapeToBRepBuilderShapeAdapter.h
       - geoml/internal/boolean_operations/BRepSewingToBRepBuilderShapeAdapter.h
@@ -311,6 +367,18 @@ modules:
     blacklist:
       - TracePoint
       - DebugScope
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # dumpShape's own TopoDS_Shape const& parameter - see
+    # internal_boolean_operations's own identical extra_includes comment for why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/internal/common/COptionList.h
       - geoml/internal/common/CommonFunctions.h
@@ -324,6 +392,20 @@ modules:
   - name: internal_contrib
     # .hxx here, not .h - contrib/ is vendored third-party code (SurfTools/MakeLoops/
     # MakePatches), kept in its own original naming convention.
+    #
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # MakeLoops's/MakePatches's own TopoDS_Shape const& constructor/Init
+    # parameters - see internal_boolean_operations's own identical
+    # extra_includes comment for why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/internal/contrib/MakeLoops.hxx
       - geoml/internal/contrib/MakePatches.hxx
@@ -458,8 +540,21 @@ modules:
     # (this parameter was rejected outright until grunk's own Param.kind() canonical-
     # spelling over-rejection was fixed upstream - see DESIGN.md's "two bugs fixed
     # upstream" - so this module never needed it before).
+    #
+    # TopoDS_*.hxx: hooks.py's own generic TopoDS_Shape-widening now widens
+    # Transformation::Transform's own TopoDS_Shape const& overload - see
+    # internal_boolean_operations's own identical extra_includes comment for
+    # why.
     extra_includes:
       - geoml/internal/topology/CNamedShape.h
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/internal/geometry/ApproxResult.h
       - geoml/internal/geometry/ArcLengthReparameterization.h
@@ -531,6 +626,24 @@ modules:
     # same "no class/struct/enum/namespace, just a typedef" shape as internal_system's
     # own omitted headers above. CNamedShape (the real class both typedefs alias a
     # pointer/vector to) is still registered, from CNamedShape.h below.
+    #
+    # extra_includes: hooks.py's own generic TopoDS_Shape-widening now widens
+    # CNamedShape's/InterpolateWires's/PatchShellTool's own TopoDS_Shape
+    # const& constructor/method parameters (InterpolateWires has TWO such
+    # parameters - profiles and guides - so its own ctor/addWire/addGuides
+    # widen into a 9x9 cross product of candidates, not just 9) and
+    # TopoAlgorithms_CutShellAtUVParameters/CutShellAtKinks's own free-
+    # function parameter - see internal_boolean_operations's own identical
+    # extra_includes comment for why.
+    extra_includes:
+      - TopoDS_CompSolid.hxx
+      - TopoDS_Compound.hxx
+      - TopoDS_Edge.hxx
+      - TopoDS_Face.hxx
+      - TopoDS_Shell.hxx
+      - TopoDS_Solid.hxx
+      - TopoDS_Vertex.hxx
+      - TopoDS_Wire.hxx
     headers:
       - geoml/internal/topology/BRepBuilderAPI_MakeShape_Operation.hpp
       - geoml/internal/topology/CNamedShape.h

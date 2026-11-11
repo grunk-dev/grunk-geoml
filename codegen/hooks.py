@@ -31,6 +31,8 @@ three headers into a module's generated .cpp only when this file's own classific
 actually produced a kind/ctor-mode needing them.
 """
 
+import dataclasses
+import itertools
 import re
 
 from grunk.codegen import generate
@@ -77,6 +79,27 @@ TOPODS_SHAPE_SUBTYPES = (
     "TopoDS_Vertex",
     "TopoDS_Wire",
 )
+
+# This is NOT only geoml::Shape's own constructor's problem. A second, later CI
+# run (same project, same sol2 restriction) hit the identical generic "no
+# matching function call" error on an ordinary generated free function:
+# windows-latest/MSVC rejected geoml.translate(single_seat, ...) where
+# single_seat is a TopoDS_Compound and geoml::translate's own first parameter
+# is `TopoDS_Shape const&` (generated/transformations.cpp) -
+# examples/airplane_seats.grr.yml's own top-level steps:, not a module
+# function, so no per-call-site Lua traceback this time, only the generic sol2
+# message - the recipe/line was found by reading translate's/repeat_shape's
+# own generated signatures directly, not from the error text. Every OTHER
+# generated callable sharing this same `TopoDS_Shape const&` parameter shape
+# (repeat_shape, and whatever else geoml's own header surface adds later) has
+# the exact same latent bug, confirmed or not yet confirmed by a CI run - so
+# emit_callable below widens EVERY const-reference TopoDS_Shape parameter on
+# EVERY generated callable (not a per-class/per-function special case like
+# SHAPE_TOPODS_WIDEN_CLASS above, which only ever covered Shape's own
+# constructor), the same one-exact-match-candidate-per-concrete-subtype fix,
+# generalized.
+ALL_TOPODS_SHAPE_WIDEN_TYPES = ("TopoDS_Shape",) + TOPODS_SHAPE_SUBTYPES
+_TOPODS_SHAPE_BASE_RE = re.compile(r"\bTopoDS_Shape\b")
 
 # The OCCT typedef this plugin's own headers use for a scalar that needs
 # AD-portability dual-emission (see emit_param/emit_callable below) - grunk's own
@@ -329,10 +352,9 @@ class Hooks(generate.CodeGenerator):
             # SHAPE_TOPODS_WIDEN_CLASS's own comment above. One candidate per
             # concrete subtype plus the base TopoDS_Shape itself, all calling
             # the same real constructor.
-            candidates = [f"[](const TopoDS_Shape & s) {{ return {class_name}(s); }}"]
-            candidates += [
-                f"[](const {subtype} & s) {{ return {class_name}(s); }}"
-                for subtype in TOPODS_SHAPE_SUBTYPES
+            candidates = [
+                f"[](const {t} & s) {{ return {class_name}(s); }}"
+                for t in ALL_TOPODS_SHAPE_WIDEN_TYPES
             ]
             return ",\n            ".join(candidates)
         # Only ever called for ctor_mode == "handle" otherwise (see
@@ -393,7 +415,55 @@ class Hooks(generate.CodeGenerator):
             return generate.strip_type(return_spelling)
         return None
 
+    def _topods_shape_widen_indices(self, c, kinds):
+        """Indices into zip(c.params, kinds) of every const-reference
+        TopoDS_Shape parameter this callable has - see
+        ALL_TOPODS_SHAPE_WIDEN_TYPES's own module-level comment for why these
+        need widening into one candidate per concrete subtype rather than
+        being emitted as a single `TopoDS_Shape const&` candidate. Excludes a
+        non-const (mutable, "out") TopoDS_Shape& - no observed/confirmed need
+        for that shape in geoml's own API, stays conservative."""
+        return [
+            i for i, (p, k) in enumerate(zip(c.params, kinds))
+            if k == "object" and p.base == "TopoDS_Shape" and "&" in p.spelling and not p.is_mutable_ref
+        ]
+
     def emit_callable(self, c, kinds, ctor_mode):
+        # Operators never reach the TopoDS_Shape-widening path below -
+        # emit_operator_lambda has a fixed, generic shape no geoml header's own
+        # TopoDS_Shape parameter actually reaches in practice. Shape's own
+        # constructor is ALSO excluded, but for a different reason: it already
+        # gets its own, equally complete widening via
+        # classify_ctor_mode/emit_constructor's SHAPE_TOPODS_WIDEN_CTOR_MODE
+        # above - letting it ALSO match here would double-widen it (each of
+        # THIS method's own 9 substituted variants would separately re-expand
+        # into emit_constructor's own hardcoded 9, which ignores the actual
+        # substituted param text entirely - 81 redundant, not 9 correct,
+        # candidates). Every OTHER constructor taking a bare TopoDS_Shape
+        # const& parameter directly (MakePatches, MakeLoops, CNamedShape,
+        # InterpolateWires, ...) is NOT Shape's own ctor_mode and has no such
+        # special-case of its own - it needs, and correctly gets, the exact
+        # same generic widening as any other callable: .add_constructors(...)
+        # is just as unconditionally flat/variadic as the free-function/
+        # method path below (see grunk's own render_module), so bare
+        # comma-splicing a widened constructor is just as safe there.
+        if not (c.kind == "operator" or (c.kind == "constructor" and ctor_mode == SHAPE_TOPODS_WIDEN_CTOR_MODE)):
+            widen_indices = self._topods_shape_widen_indices(c, kinds)
+            if widen_indices:
+                variants = []
+                for combo in itertools.product(ALL_TOPODS_SHAPE_WIDEN_TYPES, repeat=len(widen_indices)):
+                    new_params = list(c.params)
+                    for idx, subtype in zip(widen_indices, combo):
+                        p = new_params[idx]
+                        new_params[idx] = dataclasses.replace(
+                            p, spelling=_TOPODS_SHAPE_BASE_RE.sub(subtype, p.spelling)
+                        )
+                    c_variant = dataclasses.replace(c, params=new_params)
+                    variants.append(self._emit_callable_variant(c_variant, kinds, ctor_mode))
+                return ",\n            ".join(variants)
+        return self._emit_callable_variant(c, kinds, ctor_mode)
+
+    def _emit_callable_variant(self, c, kinds, ctor_mode):
         # Standard_Real AD-portability dual-emission: the ONLY place this
         # plugin's own hooks.py needs more than one textual variant of the same
         # callable - see grunk.codegen.generate.CodeGenerator.emit_callable's own

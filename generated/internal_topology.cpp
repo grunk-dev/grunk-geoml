@@ -47,6 +47,14 @@ using namespace geoml;
 #include <geoml/internal/topology/Operation.h>
 #include <geoml/internal/topology/PatchShellTool.h>
 #include <geoml/internal/topology/TopoAlgorithms.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -87,7 +95,23 @@ void register_internal_topology(grunk::plugin_namespace& ns)
             []() { return std::make_unique<CNamedShape>(); },
             [](const CNamedShape & arg0) { return std::make_unique<CNamedShape>(arg0); },
             [](const TopoDS_Shape & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
-            [](const TopoDS_Shape & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); }
+            [](const TopoDS_CompSolid & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Compound & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Edge & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Face & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Shell & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Solid & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Vertex & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Wire & shape, const std::string & shapeName) { return std::make_unique<CNamedShape>(shape, shapeName); },
+            [](const TopoDS_Shape & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_CompSolid & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Compound & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Edge & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Face & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Shell & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Solid & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Vertex & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); },
+            [](const TopoDS_Wire & shape, const std::string & shapeName, const std::string & shapeShortName) { return std::make_unique<CNamedShape>(shape, shapeName, shapeShortName); }
         )
         .add_member_function("DeepCopy", [](CNamedShape const& self) -> PNamedShape { return self.DeepCopy(); })
         .add_member_function("Clear", [](CNamedShape& self) { self.Clear(); })
@@ -97,7 +121,17 @@ void register_internal_topology(grunk::plugin_namespace& ns)
         .add_member_function("GetFaceCount", [](CNamedShape const& self) -> unsigned int { return self.GetFaceCount(); })
         .add_member_function("GetFaceTraits", [](CNamedShape const& self, unsigned int iFace) -> const CFaceTraits & { return self.GetFaceTraits(iFace); })
         .add_member_function("FaceTraits", [](CNamedShape& self, unsigned int iFace) -> CFaceTraits & { return self.FaceTraits(iFace); })
-        .add_member_function("SetShape", [](CNamedShape& self, const TopoDS_Shape & arg0) { self.SetShape(arg0); })
+        .add_member_function("SetShape", sol::overload(
+            [](CNamedShape& self, const TopoDS_Shape & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_CompSolid & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Compound & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Edge & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Face & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Shell & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Solid & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Vertex & arg0) { self.SetShape(arg0); },
+            [](CNamedShape& self, const TopoDS_Wire & arg0) { self.SetShape(arg0); }
+        ))
         .add_member_function("SetName", [](CNamedShape& self, const std::string & arg0) { self.SetName(arg0); })
         .add_member_function("SetShortName", [](CNamedShape& self, const std::string & arg0) { self.SetShortName(arg0); })
         .add_member_function("SetFaceTraits", [](CNamedShape& self, int iFace, const CFaceTraits & traits) { self.SetFaceTraits(iFace, traits); });
@@ -125,6 +159,87 @@ void register_internal_topology(grunk::plugin_namespace& ns)
 #endif
         ,
             [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shape & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Compound & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Edge & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Face & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Shell & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Solid & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Vertex & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Shape & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_CompSolid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Compound & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Edge & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Face & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Shell & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Solid & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Vertex & guides) { return InterpolateWires(profiles, guides); },
+            [](const TopoDS_Wire & profiles, const TopoDS_Wire & guides) { return InterpolateWires(profiles, guides); },
             
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](sol::object tolerance, sol::object sameKnotTolerance) { return InterpolateWires(geoml_plugin::to_real(tolerance), geoml_plugin::to_real(sameKnotTolerance)); }
@@ -132,36 +247,583 @@ void register_internal_topology(grunk::plugin_namespace& ns)
             [](Standard_Real tolerance, Standard_Real sameKnotTolerance) { return InterpolateWires(tolerance, sameKnotTolerance); }
 #endif
         ,
-            
-#if defined(GRUNK_GEOML_WITH_ADOLC)
+        #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
 #else
             [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
 #endif
         ,
-            
 #if defined(GRUNK_GEOML_WITH_ADOLC)
-            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, sol::object tolerance, sol::object sameKnotTolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance), geoml_plugin::to_real(sameKnotTolerance)); }
+            [](const TopoDS_Shape & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
 #else
-            [](const TopoDS_Shape & profiles, const TopoDS_Shape & guides, Standard_Real tolerance, Standard_Real sameKnotTolerance) { return InterpolateWires(profiles, guides, tolerance, sameKnotTolerance); }
+            [](const TopoDS_Shape & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
 #endif
-        
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shape & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shape & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Shape & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Shape & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_CompSolid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_CompSolid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Compound & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Compound & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Edge & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Edge & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Face & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Face & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Shell & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Shell & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Solid & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Solid & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Vertex & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Vertex & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profiles, const TopoDS_Wire & guides, sol::object tolerance) { return InterpolateWires(profiles, guides, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & profiles, const TopoDS_Wire & guides, Standard_Real tolerance) { return InterpolateWires(profiles, guides, tolerance); }
+#endif
         )
-        .add_member_function("addWire", [](InterpolateWires& self, const TopoDS_Shape & profiles) { self.addWire(profiles); })
-        .add_member_function("addGuides", [](InterpolateWires& self, const TopoDS_Shape & guides) { self.addGuides(guides); })
+        .add_member_function("addWire", sol::overload(
+            [](InterpolateWires& self, const TopoDS_Shape & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_CompSolid & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Compound & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Edge & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Face & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Shell & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Solid & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Vertex & profiles) { self.addWire(profiles); },
+            [](InterpolateWires& self, const TopoDS_Wire & profiles) { self.addWire(profiles); }
+        ))
+        .add_member_function("addGuides", sol::overload(
+            [](InterpolateWires& self, const TopoDS_Shape & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_CompSolid & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Compound & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Edge & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Face & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Shell & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Solid & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Vertex & guides) { self.addGuides(guides); },
+            [](InterpolateWires& self, const TopoDS_Wire & guides) { self.addGuides(guides); }
+        ))
         .add_member_function("setMakeSolid", [](InterpolateWires& self, bool enabled) { self.setMakeSolid(enabled); })
         .add_member_function("setMakeSmooth", [](InterpolateWires& self, bool enabled) { self.setMakeSmooth(enabled); })
         .add_member_function("Perform", [](InterpolateWires& self) { self.Perform(); });
     ns.register_type<PatchShellTool, sol::automagic_flags::none>("PatchShellTool")
         .add_constructors(
             [](const TopoDS_Shape & shell) { return PatchShellTool(shell); },
-            
+            [](const TopoDS_CompSolid & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Compound & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Edge & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Face & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Shell & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Solid & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Vertex & shell) { return PatchShellTool(shell); },
+            [](const TopoDS_Wire & shell) { return PatchShellTool(shell); },
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const TopoDS_Shape & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
 #else
             [](const TopoDS_Shape & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
 #endif
-        
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_CompSolid & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Compound & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Edge & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Face & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Shell & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Solid & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Vertex & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & shell, sol::object tolerance) { return PatchShellTool(shell, geoml_plugin::to_real(tolerance)); }
+#else
+            [](const TopoDS_Wire & shell, Standard_Real tolerance) { return PatchShellTool(shell, tolerance); }
+#endif
+
         )
         .add_member_function("SetMakeSolid", sol::overload(
             [](PatchShellTool& self) { self.SetMakeSolid(); },
@@ -170,12 +832,32 @@ void register_internal_topology(grunk::plugin_namespace& ns)
         .add_member_function("AddSideCap", [](PatchShellTool& self, const TopoDS_Wire & boundaryWire) { self.AddSideCap(boundaryWire); })
         .add_member_function("PatchedShape", [](PatchShellTool& self) -> TopoDS_Shape { return self.PatchedShape(); });
     ns.register_type<TopoAlgorithms, sol::automagic_flags::none>("TopoAlgorithms");
-    ns.register_function("TopoAlgorithms_CutShellAtUVParameters", [](const TopoDS_Shape & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); });
+    ns.register_function("TopoAlgorithms_CutShellAtUVParameters", sol::overload(
+        [](const TopoDS_Shape & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_CompSolid & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Compound & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Edge & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Face & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Shell & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Solid & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Vertex & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); },
+        [](const TopoDS_Wire & shape, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtUVParameters(shape, uparams, vparams); }
+    ));
     ns.register_function("TopoAlgorithms_CutSurfaceAtUVParameters", sol::overload(
         [](opencascade::handle<Geom_Surface> surface, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams) -> TopoDS_Shell { return TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams); },
         [](opencascade::handle<Geom_Surface> surface, std::vector<Standard_Real> uparams, std::vector<Standard_Real> vparams, TopoDS_Shell & shell) { TopoAlgorithms::CutSurfaceAtUVParameters(surface, uparams, vparams, shell); }
     ));
-    ns.register_function("TopoAlgorithms_CutShellAtKinks", [](const TopoDS_Shape & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); });
+    ns.register_function("TopoAlgorithms_CutShellAtKinks", sol::overload(
+        [](const TopoDS_Shape & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_CompSolid & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Compound & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Edge & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Face & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Shell & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Solid & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Vertex & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); },
+        [](const TopoDS_Wire & shape) -> TopoDS_Shape { return TopoAlgorithms::CutShellAtKinks(shape); }
+    ));
     ns.register_function("TopoAlgorithms_CutSurfaceAtKinks", sol::overload(
         [](opencascade::handle<Geom_BSplineSurface> surface) -> TopoDS_Shell { return TopoAlgorithms::CutSurfaceAtKinks(surface); },
         [](opencascade::handle<Geom_BSplineSurface> surface, TopoDS_Shell & shell) { TopoAlgorithms::CutSurfaceAtKinks(surface, shell); }

@@ -48,6 +48,14 @@ using namespace geoml;
 #include <geoml/internal/common/stringtools.h>
 #include <geoml/internal/common/to_string.h>
 #include <geoml/internal/common/typename.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -105,7 +113,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
         );
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -113,7 +137,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -121,7 +161,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -129,7 +185,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -138,7 +210,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("from_string", [](const std::string & s, any & a) { disable_adl::from_string(s, a); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -146,7 +234,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -154,7 +258,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });
@@ -162,7 +282,23 @@ void register_internal_common(grunk::plugin_namespace& ns)
     ns.register_function("typeName", [](const std::type_info & ti) -> std::string { return geoml::typeName(ti); });
     ns.register_function("dumpShape", sol::overload(
         [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
-        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename) { geoml::dumpShape(shape, outputDir, filename); },
+        [](const TopoDS_Shape & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_CompSolid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Compound & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Edge & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Face & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Shell & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Solid & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Vertex & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); },
+        [](const TopoDS_Wire & shape, const std::string & outputDir, const std::string & filename, int counter) { geoml::dumpShape(shape, outputDir, filename, counter); }
     ));
     ns.register_function("to_lower", [](const std::string & str) -> std::string { return geoml::to_lower(str); });
     ns.register_function("to_upper", [](const std::string & str) -> std::string { return geoml::to_upper(str); });

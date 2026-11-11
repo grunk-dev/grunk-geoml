@@ -43,6 +43,14 @@ using namespace geoml;
 #include <geoml/internal/contrib/MakeLoops.hxx>
 #include <geoml/internal/contrib/MakePatches.hxx>
 #include <geoml/internal/contrib/SurfTools.hxx>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -65,12 +73,36 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
     ns.register_type<MakeLoops, sol::automagic_flags::none>("MakeLoops")
         .add_constructors(
             []() { return MakeLoops(); },
-            [](const TopoDS_Shape & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); }
+            [](const TopoDS_Shape & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_CompSolid & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Compound & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Edge & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Face & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Shell & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Solid & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Vertex & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); },
+            [](const TopoDS_Wire & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { return MakeLoops(theNetWork, GuidesEdges, ProfileEdges); }
         )
-        .add_member_function("Init", [](MakeLoops& self, const TopoDS_Shape & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); })
-        .add_member_function("Perform", [](MakeLoops& self) { self.Perform(); })
-        .add_member_function("Cells", [](MakeLoops const& self) -> opencascade::handle<TopTools_HArray2OfShape> { return self.Cells(); })
-        .add_member_function("GetStatus", [](MakeLoops const& self) -> Standard_Integer { return self.GetStatus(); });
+        .add_member_function("Init", sol::overload(
+            [](MakeLoops& self, const TopoDS_Shape & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_CompSolid & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Compound & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Edge & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Face & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Shell & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Solid & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Vertex & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); },
+            [](MakeLoops& self, const TopoDS_Wire & theNetWork, const TopTools_MapOfShape & GuidesEdges, const TopTools_MapOfShape & ProfileEdges) { self.Init(theNetWork, GuidesEdges, ProfileEdges); }
+        ))
+        .add_member_function("Perform", sol::overload(
+            [](MakeLoops& self) { self.Perform(); }
+        ))
+        .add_member_function("Cells", sol::overload(
+            [](MakeLoops const& self) -> opencascade::handle<TopTools_HArray2OfShape> { return self.Cells(); }
+        ))
+        .add_member_function("GetStatus", sol::overload(
+            [](MakeLoops const& self) -> Standard_Integer { return self.GetStatus(); }
+        ));
     sol::table(ns.table()).new_enum("MakePatchesStatus",
             "MAKEPATCHES_OK", MAKEPATCHES_OK,
             "MAKEPATCHES_FAIL_INTERSECTION", MAKEPATCHES_FAIL_INTERSECTION,
@@ -79,9 +111,171 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
     ns.register_type<MakePatches, sol::automagic_flags::none>("MakePatches")
         .add_constructors(
             []() { return MakePatches(); },
-            [](const TopoDS_Shape & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); }
+            [](const TopoDS_Shape & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shape & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_CompSolid & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Compound & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Edge & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Face & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Shell & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Solid & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Vertex & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Shape & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_CompSolid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Compound & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Edge & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Face & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Shell & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Solid & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Vertex & theProfiles) { return MakePatches(theGuides, theProfiles); },
+            [](const TopoDS_Wire & theGuides, const TopoDS_Wire & theProfiles) { return MakePatches(theGuides, theProfiles); }
         )
-        .add_member_function("Init", [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); })
+        .add_member_function("Init", sol::overload(
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shape & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_CompSolid & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Compound & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Edge & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Face & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Shell & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Solid & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Vertex & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Shape & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_CompSolid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Compound & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Edge & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Face & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Shell & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Solid & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Vertex & theProfiles) { self.Init(theGuides, theProfiles); },
+            [](MakePatches& self, const TopoDS_Wire & theGuides, const TopoDS_Wire & theProfiles) { self.Init(theGuides, theProfiles); }
+        ))
         .add_member_function("Perform", sol::overload(
             
 #if defined(GRUNK_GEOML_WITH_ADOLC)
@@ -105,8 +299,12 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
 #endif
         
         ))
-        .add_member_function("Patches", [](MakePatches const& self) -> const TopoDS_Shape & { return self.Patches(); })
-        .add_member_function("GetStatus", [](MakePatches const& self) -> MakePatchesStatus { return self.GetStatus(); });
+        .add_member_function("Patches", sol::overload(
+            [](MakePatches const& self) -> const TopoDS_Shape & { return self.Patches(); }
+        ))
+        .add_member_function("GetStatus", sol::overload(
+            [](MakePatches const& self) -> MakePatchesStatus { return self.GetStatus(); }
+        ));
     ns.register_type<SurfTools, sol::automagic_flags::none>("SurfTools");
     ns.register_function("MakePatches_BuildSurface", sol::overload(
         
@@ -131,20 +329,24 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
 #endif
         
     ));
-    ns.register_function("SurfTools_UReparametrize", 
+    ns.register_function("SurfTools_UReparametrize", sol::overload(
+        
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](opencascade::handle<Geom_BSplineSurface> theS, sol::object theUfirst, sol::object theUlast) { SurfTools::UReparametrize(theS, geoml_plugin::to_real(theUfirst), geoml_plugin::to_real(theUlast)); }
 #else
             [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Real theUfirst, const Standard_Real theUlast) { SurfTools::UReparametrize(theS, theUfirst, theUlast); }
 #endif
-        );
-    ns.register_function("SurfTools_VReparametrize", 
+        
+    ));
+    ns.register_function("SurfTools_VReparametrize", sol::overload(
+        
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](opencascade::handle<Geom_BSplineSurface> theS, sol::object theVfirst, sol::object theVlast) { SurfTools::VReparametrize(theS, geoml_plugin::to_real(theVfirst), geoml_plugin::to_real(theVlast)); }
 #else
             [](opencascade::handle<Geom_BSplineSurface> theS, const Standard_Real theVfirst, const Standard_Real theVlast) { SurfTools::VReparametrize(theS, theVfirst, theVlast); }
 #endif
-        );
+        
+    ));
     ns.register_function("SurfTools_USmoothing", sol::overload(
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)
@@ -177,20 +379,24 @@ void register_internal_contrib(grunk::plugin_namespace& ns)
 #endif
         
     ));
-    ns.register_function("SurfTools_ConcatenateSurfacesV", 
+    ns.register_function("SurfTools_ConcatenateSurfacesV", sol::overload(
+        
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
 #else
             [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesV(theS1, theS2, theTol, theS); }
 #endif
-        );
-    ns.register_function("SurfTools_ConcatenateSurfacesU", 
+        
+    ));
+    ns.register_function("SurfTools_ConcatenateSurfacesU", sol::overload(
+        
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, sol::object theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, geoml_plugin::to_real(theTol), theS); }
 #else
             [](opencascade::handle<Geom_BSplineSurface> theS1, opencascade::handle<Geom_BSplineSurface> theS2, const Standard_Real theTol, opencascade::handle<Geom_BSplineSurface> theS) -> Standard_Integer { return SurfTools::ConcatenateSurfacesU(theS1, theS2, theTol, theS); }
 #endif
-        );
+        
+    ));
     ns.register_function("SurfTools_ConcatenateSurfaces", sol::overload(
         
 #if defined(GRUNK_GEOML_WITH_ADOLC)

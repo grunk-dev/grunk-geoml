@@ -1625,3 +1625,121 @@ default test` (23/23 ctest passed), `pixi run -e default run_examples` (all 6
 recipes passed, including `load_carrier.grr.yml`: `export_brep succeeded`).
 Cross-platform CI confirmation (macOS/Windows, the actual repro platform for
 this one) is still pending as of this entry - same caveat as the entry above.
+
+## The same sol2 restriction, generalized: every `TopoDS_Shape const&` parameter, not just Shape's own ctor (2026-11-11)
+
+A third CI run (after both fixes above actually landed and got past
+`load_carrier.grr.yml` entirely, both on Windows) surfaced the exact same sol2
+restriction a third time, on `windows-latest` only, in `airplane_seats.grr.yml`
+- a generic "no matching function call" with no further detail (the failure is
+at the top-level `steps:` dynamic-action layer, not inside a Lua module
+function, so no per-call-site traceback this time). Localized by reading
+`generated/transformations.cpp`'s own `geoml.translate`/`geoml.repeat_shape`
+signatures directly: both take `TopoDS_Shape const&`, and the recipe's own
+`geoml.translate(single_seat, ...)` call passes a `TopoDS_Compound`
+(`single_seat`, built via `helpers.make_compound`).
+
+This made it clear the bug isn't specific to `geoml::Shape`'s own constructor
+at all - it's generic to **every** generated callable (free function or
+method) taking a bare `TopoDS_Shape const&` parameter anywhere in geoml's own
+API surface. Rather than hand-patching call sites as each one turned up in a
+future CI run, `codegen/hooks.py`'s `emit_callable()` now widens EVERY such
+parameter, on every callable, the same way: `ALL_TOPODS_SHAPE_WIDEN_TYPES`
+(`TopoDS_Shape` plus the same 8 concrete subtypes) × however many widenable
+parameters a given callable has (a cross product when more than one - e.g.
+`InterpolateWires::InterpolateWires(profiles, guides)` needs the full 9×9 = 81
+candidates, not just 9, since the restriction applies independently to each
+parameter position). Constructors are handled generically too now (not just
+`Shape`'s own, which keeps its existing `SHAPE_TOPODS_WIDEN_CTOR_MODE` special
+case - `emit_callable()` explicitly skips that one case to avoid double-
+widening: each of `emit_constructor`'s own 9 candidates would otherwise
+separately re-expand into its own hardcoded 9, since it ignores whatever
+param text it's actually given).
+
+Two real complications this generalization surfaced, both confirmed by
+actually trying to build the result, not just by reasoning about it:
+
+1. **A single callable's widened candidate list must have a fixed, non-
+   template `operator()` per candidate** - sol2 inspects each `sol::overload`
+   candidate's own `function_traits` to build its stack-arg checkers, so a
+   single generic/templated lambda covering every kind doesn't work (confirmed
+   directly: `register_function` rejected it outright). `emit_callable()`
+   therefore builds one concrete lambda text per substituted parameter
+   combination (via `dataclasses.replace` on a copy of the `Callable`'s own
+   `params`), not a single variadic one.
+
+2. **A genuine, library-agnostic bug in `grunk`'s own shared `generate.py`**:
+   `render_module()` only wrapped a same-named group of callables in
+   `sol::overload(...)` when more than one real C++ overload was discovered
+   (`len(overloads) > 1`) - for the common case of exactly one real overload
+   (e.g. `geoml::repeat_shape`, `geoml::dumpShape`), it used `hooks.emit_callable()`'s
+   return value bare, directly as the sole argument to
+   `plugin_namespace::register_function()`/`usertype_proxy::add_member_function()`
+   - both single-`Func`-template-parameter calls, not variadic.  Once a hook's
+   `emit_callable()` legitimately needs to return *several* candidate lambdas
+   for what is, from the generator's own point of view, a single discovered
+   overload (exactly what the widening above needs), that bare splice became
+   several literal extra positional arguments to a function that only takes
+   one - a hard compile error, confirmed directly (`geoml.repeat_shape`'s own
+   generated registration). `sol::overload(...)` already handles a single
+   function perfectly well (it's just `sol::overload_set<F>` with one `F`), so
+   the fix - per [[feedback-grunk-core-fix-workflow]], applied directly to the
+   local `grunk` checkout
+   (`grunk/python/grunk/codegen/generate.py`'s `render_module()`, both the
+   free-function/static-method loop and the instance-method loop) - is to
+   *always* wrap in `sol::overload(...)`, regardless of count. (Nesting one
+   `sol::overload_set` as a candidate *inside* another was considered and
+   rejected: read directly from the vendored sol2 source
+   (`sol/function_types_overloaded.hpp`'s `overloaded_function::call`), each
+   candidate must have a statically-deducible arity/signature via
+   `function_traits` to participate in `overload_match` - an `overload_set`
+   has none. This is exactly why `emit_callable()`'s own widening returns a
+   flat, un-wrapped comma-joined list of candidates rather than a nested
+   `sol::overload(...)` - it relies on `render_module()`'s now-unconditional
+   wrapping to supply the one, single, non-nested `sol::overload(...)` each
+   group actually needs.) **This grunk-core fix is applied locally only, not
+   committed anywhere** - per the established workflow, it still needs an
+   issue+PR against `grunk` itself; `grunk-geoml`'s own pinned `grunk`
+   revision is unchanged, so a fresh `GRUNK_GEOML_GENERATE_CODE=ON` run against
+   today's pin would reproduce the same compile error until that pin is
+   bumped. The regenerated `generated/*.cpp` files committed here were
+   produced by pointing `PYTHONPATH` at the patched local `grunk` checkout for
+   this one-off regeneration (see the scratchpad `regen.py` script used), not
+   by changing anything `grunk-geoml` itself depends on at build time.
+
+A third, separate thing found (and deliberately **not** acted on) while doing
+this: the locally-installed `.deps/geoml`'s own headers spell some
+`Standard_Real`-shaped parameters as plain `double` instead (e.g.
+`interpolate_curve_network`'s `tolerance` - confirmed directly against
+`.deps/geoml/include/geoml/surfaces/surfaces.h`, not an artifact of this
+environment) - a full regeneration run would have silently dropped this
+plugin's own AD dual-emission for every such parameter, an unrelated,
+pre-existing upstream-geoml-API-drift issue outside this fix's scope. Every
+affected file was therefore regenerated once to discover/verify the correct
+widening shape, then reverted to its checked-in HEAD content and the widening
+re-applied *by hand* on top of the original, still-`Standard_Real`-spelled
+text - preserving the existing AD coverage exactly as before. Files needing no
+widening at all (no `TopoDS_Shape const&` parameter anywhere in that module)
+were reverted outright, even where the only diff was the now-harmless-but-
+unnecessary `sol::overload(...)`-wrapping-of-a-single-function churn from the
+grunk-core fix above, to keep this change scoped to the actual bug.
+
+Every module whose generated code now widens a `TopoDS_Shape const&`
+parameter needed its own new `extra_includes:` entry in `codegen/config.yml`
+(`internal_boolean_operations`, `internal_common`, `internal_contrib`,
+`internal_geometry`, `internal_topology`, `predicates`, `surfaces`,
+`transformations` - `naming_choosing` already had one, from the `Shape` ctor
+fix above) - every concrete `TopoDS_*` subtype needs to be a complete type in
+that translation unit for the implicit upcast each candidate relies on, same
+completeness need as every other `extra_includes` entry in that file.
+
+Verified locally (Linux): a clean `pixi run -e default configure Release` +
+`build` (33/33 objects, including `internal_topology.cpp`'s own 81-candidate
+`InterpolateWires` constructor), `pixi run -e default test` (23/23 ctest
+passed), `pixi run -e default run_examples` (all 6 recipes passed, including
+`airplane_seats.grr.yml`, which exercises `geoml.translate`/
+`geoml.repeat_shape` on a `TopoDS_Compound`), `pixi run -e default test_hooks`
+(25/25 passed, 4 new tests covering the generic widening and the Shape-ctor
+double-widening guard), and `pixi install --locked` (no lock drift). Cross-
+platform CI confirmation is, again, still pending - the real test, same as
+both entries above.

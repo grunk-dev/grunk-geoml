@@ -259,6 +259,72 @@ def test_emit_callable_no_ad_macro_without_real_kind():
 
 
 # ---------------------------------------------------------------------------
+# emit_callable() - generic TopoDS_Shape const& widening (not just Shape's own
+# constructor - see ALL_TOPODS_SHAPE_WIDEN_TYPES's own module-level comment:
+# this is a second, later CI failure hitting the same sol2 restriction on an
+# ordinary generated free function/method).
+# ---------------------------------------------------------------------------
+
+def test_emit_callable_widens_single_topods_shape_param():
+    hooks = Hooks()
+    c = _callable(
+        [generate.Param("const TopoDS_Shape &", "shape")],
+        return_spelling="int", class_name="free_function", is_static=True,
+    )
+    src = hooks.emit_callable(c, ["object"], "value")
+    assert "[](const TopoDS_Shape & shape)" in src
+    for subtype in hooks_module.TOPODS_SHAPE_SUBTYPES:
+        assert f"[](const {subtype} & shape)" in src
+    # One candidate per type in ALL_TOPODS_SHAPE_WIDEN_TYPES, nothing more.
+    assert src.count("return free_function::Do(shape)") == len(hooks_module.ALL_TOPODS_SHAPE_WIDEN_TYPES)
+
+
+def test_emit_callable_does_not_widen_mutable_topods_shape_ref():
+    # An "out" TopoDS_Shape& (non-const) is left alone - see
+    # _topods_shape_widen_indices's own comment for why (no observed/confirmed
+    # need, stays conservative).
+    hooks = Hooks()
+    c = _callable(
+        [generate.Param("TopoDS_Shape &", "shape")],
+        return_spelling="void", class_name="free_function", is_static=True,
+    )
+    src = hooks.emit_callable(c, ["object"], "value")
+    assert src.count("[](") == 1
+    assert "TopoDS_CompSolid" not in src
+
+
+def test_emit_callable_cross_products_two_topods_shape_params():
+    # internal_topology's own real-world shape: InterpolateWires::InterpolateWires
+    # (profiles, guides), both TopoDS_Shape const& - needs a full 9x9 cross
+    # product, not just 9, since sol2's reference-parameter restriction applies
+    # independently to each parameter position.
+    hooks = Hooks()
+    c = _callable(
+        [generate.Param("const TopoDS_Shape &", "profiles"), generate.Param("const TopoDS_Shape &", "guides")],
+        return_spelling="void", class_name="InterpolateWires", is_static=True,
+    )
+    src = hooks.emit_callable(c, ["object", "object"], "value")
+    n = len(hooks_module.ALL_TOPODS_SHAPE_WIDEN_TYPES)
+    assert src.count("[](") == n * n
+    assert "[](const TopoDS_Wire & profiles, const TopoDS_Wire & guides)" in src
+
+
+def test_emit_callable_shape_ctor_mode_is_not_double_widened():
+    # Shape's own constructor already gets its full widening via
+    # classify_ctor_mode/emit_constructor's SHAPE_TOPODS_WIDEN_CTOR_MODE -
+    # emit_callable's own generic widening must not ALSO apply here, or every
+    # one of emit_constructor's 9 candidates would separately re-expand into
+    # its own hardcoded 9 (81 redundant candidates instead of 9 correct ones).
+    hooks = Hooks()
+    c = generate.Callable(
+        "Shape", "constructor", "Shape",
+        [generate.Param("const TopoDS_Shape &", "theShape")], None, is_const=False,
+    )
+    src = hooks.emit_callable(c, ["object"], hooks_module.SHAPE_TOPODS_WIDEN_CTOR_MODE)
+    assert src.count("[](") == len(hooks_module.ALL_TOPODS_SHAPE_WIDEN_TYPES)
+
+
+# ---------------------------------------------------------------------------
 # OVERLOAD_AMBIGUITY_KINDS / REVERSIBLE_OPERAND_KINDS
 # ---------------------------------------------------------------------------
 

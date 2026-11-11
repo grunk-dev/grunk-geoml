@@ -41,6 +41,14 @@ using namespace geoml;
 #include "sol_base_classes.hpp"
 
 #include <geoml/surfaces/surfaces.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -65,13 +73,69 @@ void register_surfaces(grunk::plugin_namespace& ns)
     ));
     ns.register_function("revolving_shape", sol::overload(
         [](const TopoDS_Shape & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
-        
+            [](const TopoDS_CompSolid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Compound & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Edge & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Face & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Shell & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Solid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Vertex & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+            [](const TopoDS_Wire & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction); },
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const TopoDS_Shape & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
 #else
             [](const TopoDS_Shape & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
 #endif
-        
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_CompSolid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Compound & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Edge & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Face & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Shell & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Solid & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Vertex & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, sol::object angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, geoml_plugin::to_real(angle)); }
+#else
+            [](const TopoDS_Wire & profile_shape, const gp_Pnt & start_point_rotation_axis, const gp_Vec & rotation_axis_direction, const Standard_Real angle) -> TopoDS_Shape { return geoml::revolving_shape(profile_shape, start_point_rotation_axis, rotation_axis_direction, angle); }
+#endif
+
     ));
     ns.register_function("create_surface", [](const gp_Pnt & p_1, const gp_Pnt & p_2, const gp_Pnt & p_3, const gp_Pnt & p_4) -> opencascade::handle<Geom_Surface> { return geoml::create_surface(p_1, p_2, p_3, p_4); });
     ns.register_function("create_face", [](const gp_Pnt & p_1, const gp_Pnt & p_2, const gp_Pnt & p_3, const gp_Pnt & p_4) -> TopoDS_Face { return geoml::create_face(p_1, p_2, p_3, p_4); });

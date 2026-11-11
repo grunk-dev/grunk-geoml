@@ -42,6 +42,14 @@ using namespace geoml;
 
 #include <geoml/transformations/Transform.h>
 #include <geoml/transformations/transformations.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -55,56 +63,188 @@ void register_transformations(grunk::plugin_namespace& ns)
         .add_member_function("pre_multiply", [](Transform& self, const Transform & aTrans) { self.pre_multiply(aTrans); });
     ns.register_function("translate", sol::overload(
         [](const TopoDS_Shape & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_CompSolid & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Compound & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Edge & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Face & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Shell & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Solid & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Vertex & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Wire & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
         [](const gp_Pnt & origin, const gp_Vec & direction) -> gp_Pnt { return geoml::translate(origin, direction); },
         [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction); },
-        
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const TopoDS_Shape & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const TopoDS_Shape & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
 #endif
         ,
-        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_CompSolid & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Compound & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Edge & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Face & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Shell & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Solid & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Vertex & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Wire & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const gp_Pnt & origin, const gp_Vec & direction, sol::object factor) -> gp_Pnt { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const gp_Pnt & origin, const gp_Vec & direction, Standard_Real factor) -> gp_Pnt { return geoml::translate(origin, direction, factor); }
 #endif
         ,
-        
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction, sol::object factor) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction, Standard_Real factor) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction, factor); }
 #endif
-        
+
     ));
-    ns.register_function("repeat_shape", [](const TopoDS_Shape & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); });
+    ns.register_function("repeat_shape", sol::overload(
+        [](const TopoDS_Shape & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_CompSolid & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Compound & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Edge & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Face & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Shell & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Solid & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Vertex & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Wire & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); }
+    ));
     ns.register_function("translate", sol::overload(
         [](const TopoDS_Shape & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_CompSolid & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Compound & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Edge & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Face & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Shell & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Solid & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Vertex & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
+        [](const TopoDS_Wire & origin, const gp_Vec & direction) -> TopoDS_Shape { return geoml::translate(origin, direction); },
         [](const gp_Pnt & origin, const gp_Vec & direction) -> gp_Pnt { return geoml::translate(origin, direction); },
         [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction); },
-        
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const TopoDS_Shape & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const TopoDS_Shape & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
 #endif
         ,
-        
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_CompSolid & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_CompSolid & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Compound & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Compound & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Edge & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Edge & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Face & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Face & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Shell & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Shell & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Solid & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Solid & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Vertex & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Vertex & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+#if defined(GRUNK_GEOML_WITH_ADOLC)
+            [](const TopoDS_Wire & origin, const gp_Vec & direction, sol::object factor) -> TopoDS_Shape { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
+#else
+            [](const TopoDS_Wire & origin, const gp_Vec & direction, Standard_Real factor) -> TopoDS_Shape { return geoml::translate(origin, direction, factor); }
+#endif
+        ,
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const gp_Pnt & origin, const gp_Vec & direction, sol::object factor) -> gp_Pnt { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const gp_Pnt & origin, const gp_Vec & direction, Standard_Real factor) -> gp_Pnt { return geoml::translate(origin, direction, factor); }
 #endif
         ,
-        
+
 #if defined(GRUNK_GEOML_WITH_ADOLC)
             [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction, sol::object factor) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction, geoml_plugin::to_real(factor)); }
 #else
             [](const std::vector<gp_Pnt> & origin, const gp_Vec & direction, Standard_Real factor) -> std::vector<gp_Pnt> { return geoml::translate(origin, direction, factor); }
 #endif
-        
+
     ));
-    ns.register_function("repeat_shape", [](const TopoDS_Shape & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); });
+    ns.register_function("repeat_shape", sol::overload(
+        [](const TopoDS_Shape & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_CompSolid & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Compound & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Edge & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Face & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Shell & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Solid & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Vertex & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); },
+        [](const TopoDS_Wire & origin, const Transform & trans, int n_repeats) -> TopoDS_Compound { return geoml::repeat_shape(origin, trans, n_repeats); }
+    ));
 }

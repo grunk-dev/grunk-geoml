@@ -61,6 +61,14 @@ using namespace geoml;
 #include <geoml/internal/geometry/curve-networks/GordonSurfaceBuilder.h>
 #include <geoml/internal/geometry/curve-networks/InterpolateCurveNetwork.h>
 #include <geoml/internal/topology/CNamedShape.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -329,6 +337,14 @@ void register_internal_geometry(grunk::plugin_namespace& ns)
         .add_member_function("AddMirroringAtYZPlane", [](Transformation& self) { self.AddMirroringAtYZPlane(); })
         .add_member_function("Transform", sol::overload(
             [](Transformation const& self, const TopoDS_Shape & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_CompSolid & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Compound & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Edge & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Face & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Shell & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Solid & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Vertex & shape) -> TopoDS_Shape { return self.Transform(shape); },
+            [](Transformation const& self, const TopoDS_Wire & shape) -> TopoDS_Shape { return self.Transform(shape); },
             [](Transformation const& self, PNamedShape shape) -> PNamedShape { return self.Transform(shape); },
             [](Transformation const& self, const gp_Pnt & point) -> gp_Pnt { return self.Transform(point); },
             [](Transformation const& self, opencascade::handle<Geom_Surface> surf) -> opencascade::handle<Geom_Surface> { return self.Transform(surf); },

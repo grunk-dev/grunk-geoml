@@ -41,6 +41,14 @@ using namespace geoml;
 #include "sol_base_classes.hpp"
 
 #include <geoml/predicates/predicate_functions.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -50,14 +58,30 @@ using namespace geoml;
 void register_predicates(grunk::plugin_namespace& ns)
 {
 
-    ns.register_function("has_tag", [](const std::string & tag) -> ShapePredicate { return geoml::has_tag(tag); });
-    ns.register_function("is_type", [](TopAbs_ShapeEnum shape_type) -> ShapePredicate { return geoml::is_type(shape_type); });
+    ns.register_function("has_tag", sol::overload(
+        [](const std::string & tag) -> ShapePredicate { return geoml::has_tag(tag); }
+    ));
+    ns.register_function("is_type", sol::overload(
+        [](TopAbs_ShapeEnum shape_type) -> ShapePredicate { return geoml::is_type(shape_type); }
+    ));
     ns.register_function("is_same", sol::overload(
         [](const Shape & other) -> ShapePredicate { return geoml::is_same(other); },
-        [](const TopoDS_Shape & other) -> ShapePredicate { return geoml::is_same(other); }
+        [](const TopoDS_Shape & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_CompSolid & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Compound & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Edge & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Face & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Shell & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Solid & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Vertex & other) -> ShapePredicate { return geoml::is_same(other); },
+            [](const TopoDS_Wire & other) -> ShapePredicate { return geoml::is_same(other); }
     ));
-    ns.register_function("has_subshape", [](const Shape & shape) -> ShapePredicate { return geoml::has_subshape(shape); });
-    ns.register_function("is_subshape_of", [](const Shape & other) -> ShapePredicate { return geoml::is_subshape_of(other); });
+    ns.register_function("has_subshape", sol::overload(
+        [](const Shape & shape) -> ShapePredicate { return geoml::has_subshape(shape); }
+    ));
+    ns.register_function("is_subshape_of", sol::overload(
+        [](const Shape & other) -> ShapePredicate { return geoml::is_subshape_of(other); }
+    ));
     ns.register_function("is_unmodified_descendent_of", sol::overload(
         [](const Shape & other) -> ShapePredicate { return geoml::is_unmodified_descendent_of(other); },
         [](const Shape & other, int max_depth) -> ShapePredicate { return geoml::is_unmodified_descendent_of(other, max_depth); }
@@ -82,10 +106,22 @@ void register_predicates(grunk::plugin_namespace& ns)
         [](const Shape & other) -> ShapePredicate { return geoml::is_descendent_of(other); },
         [](const Shape & other, int max_depth) -> ShapePredicate { return geoml::is_descendent_of(other, max_depth); }
     ));
-    ns.register_function("has_subshape_that", [](const ShapePredicate & pred) -> ShapePredicate { return geoml::has_subshape_that(pred); });
-    ns.register_function("_is_vertex", [](const Shape & s) -> bool { return details::_is_vertex(s); });
-    ns.register_function("_is_edge", [](const Shape & s) -> bool { return details::_is_edge(s); });
-    ns.register_function("_is_face", [](const Shape & s) -> bool { return details::_is_face(s); });
-    ns.register_function("_is_solid", [](const Shape & s) -> bool { return details::_is_solid(s); });
-    ns.register_function("_has_origin", [](const Shape & s) -> bool { return details::_has_origin(s); });
+    ns.register_function("has_subshape_that", sol::overload(
+        [](const ShapePredicate & pred) -> ShapePredicate { return geoml::has_subshape_that(pred); }
+    ));
+    ns.register_function("_is_vertex", sol::overload(
+        [](const Shape & s) -> bool { return details::_is_vertex(s); }
+    ));
+    ns.register_function("_is_edge", sol::overload(
+        [](const Shape & s) -> bool { return details::_is_edge(s); }
+    ));
+    ns.register_function("_is_face", sol::overload(
+        [](const Shape & s) -> bool { return details::_is_face(s); }
+    ));
+    ns.register_function("_is_solid", sol::overload(
+        [](const Shape & s) -> bool { return details::_is_solid(s); }
+    ));
+    ns.register_function("_has_origin", sol::overload(
+        [](const Shape & s) -> bool { return details::_has_origin(s); }
+    ));
 }

@@ -53,6 +53,14 @@ using namespace geoml;
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BOPAlgo_PaveFiller.hxx>
 #include <geoml/internal/topology/CNamedShape.h>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 
 #include <memory>
 
@@ -65,17 +73,61 @@ void register_internal_boolean_operations(grunk::plugin_namespace& ns)
         .add_constructors(
             [](BOPAlgo_BuilderShape & adaptee) { return std::make_unique<BOPBuilderShapeToBRepBuilderShapeAdapter>(adaptee); }
         )
-        .add_member_function("Shape", [](BOPBuilderShapeToBRepBuilderShapeAdapter const& self) -> const TopoDS_Shape & { return self.Shape(); })
-        .add_member_function("Generated", [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Generated(S); })
-        .add_member_function("Modified", [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Modified(S); })
-        .add_member_function("IsDeleted", [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> Standard_Boolean { return self.IsDeleted(S); })
+        .add_member_function("Shape", sol::overload(
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter const& self) -> const TopoDS_Shape & { return self.Shape(); }
+        ))
+        .add_member_function("Generated", sol::overload(
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_CompSolid & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Compound & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Edge & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Face & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shell & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Solid & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Vertex & S) -> const TopTools_ListOfShape & { return self.Generated(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Wire & S) -> const TopTools_ListOfShape & { return self.Generated(S); }
+        ))
+        .add_member_function("Modified", sol::overload(
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_CompSolid & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Compound & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Edge & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Face & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shell & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Solid & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Vertex & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Wire & S) -> const TopTools_ListOfShape & { return self.Modified(S); }
+        ))
+        .add_member_function("IsDeleted", sol::overload(
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_CompSolid & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Compound & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Edge & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Face & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Shell & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Solid & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Vertex & S) -> Standard_Boolean { return self.IsDeleted(S); },
+            [](BOPBuilderShapeToBRepBuilderShapeAdapter& self, const TopoDS_Wire & S) -> Standard_Boolean { return self.IsDeleted(S); }
+        ))
         .add_bases<BRepBuilderAPI_MakeShape, BRepBuilderAPI_Command>();
     ns.register_type<BRepSewingToBRepBuilderShapeAdapter, sol::automagic_flags::none>("BRepSewingToBRepBuilderShapeAdapter")
         .add_constructors(
             [](BRepBuilderAPI_Sewing & adaptee) { return std::make_unique<BRepSewingToBRepBuilderShapeAdapter>(adaptee); }
         )
-        .add_member_function("Shape", [](BRepSewingToBRepBuilderShapeAdapter const& self) -> const TopoDS_Shape & { return self.Shape(); })
-        .add_member_function("Modified", [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Modified(S); })
+        .add_member_function("Shape", sol::overload(
+            [](BRepSewingToBRepBuilderShapeAdapter const& self) -> const TopoDS_Shape & { return self.Shape(); }
+        ))
+        .add_member_function("Modified", sol::overload(
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Shape & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_CompSolid & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Compound & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Edge & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Face & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Shell & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Solid & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Vertex & S) -> const TopTools_ListOfShape & { return self.Modified(S); },
+            [](BRepSewingToBRepBuilderShapeAdapter& self, const TopoDS_Wire & S) -> const TopTools_ListOfShape & { return self.Modified(S); }
+        ))
         .add_bases<BRepBuilderAPI_MakeShape, BRepBuilderAPI_Command>();
     ns.register_type<CBooleanOperTools, sol::automagic_flags::none>("CBooleanOperTools");
     ns.register_type<CBopCommon, sol::automagic_flags::none>("CBopCommon")
@@ -83,35 +135,59 @@ void register_internal_boolean_operations(grunk::plugin_namespace& ns)
             [](const PNamedShape shape, const PNamedShape tool) { return std::make_unique<CBopCommon>(shape, tool); },
             [](const PNamedShape shape, const PNamedShape tool, const BOPAlgo_PaveFiller & arg2) { return std::make_unique<CBopCommon>(shape, tool, arg2); }
         )
-        .add_member_function("Perform", [](CBopCommon& self) { self.Perform(); })
-        .add_member_function("NamedShape", [](CBopCommon& self) -> const PNamedShape { return self.NamedShape(); });
+        .add_member_function("Perform", sol::overload(
+            [](CBopCommon& self) { self.Perform(); }
+        ))
+        .add_member_function("NamedShape", sol::overload(
+            [](CBopCommon& self) -> const PNamedShape { return self.NamedShape(); }
+        ));
     ns.register_type<CCutShape, sol::automagic_flags::none>("CCutShape")
         .add_constructors(
             [](const PNamedShape shape, const PNamedShape cuttingTool) { return std::make_unique<CCutShape>(shape, cuttingTool); },
             [](const PNamedShape shape, const PNamedShape cuttingTool, const BOPAlgo_PaveFiller & arg2) { return std::make_unique<CCutShape>(shape, cuttingTool, arg2); }
         )
-        .add_member_function("Perform", [](CCutShape& self) { self.Perform(); })
-        .add_member_function("NamedShape", [](CCutShape& self) -> const PNamedShape { return self.NamedShape(); });
+        .add_member_function("Perform", sol::overload(
+            [](CCutShape& self) { self.Perform(); }
+        ))
+        .add_member_function("NamedShape", sol::overload(
+            [](CCutShape& self) -> const PNamedShape { return self.NamedShape(); }
+        ));
     ns.register_type<CFuseShapes, sol::automagic_flags::none>("CFuseShapes")
         .add_constructors(
             [](const PNamedShape parent, const ListPNamedShape & childs) { return std::make_unique<CFuseShapes>(parent, childs); }
         )
-        .add_member_function("NamedShape", [](CFuseShapes& self) -> const PNamedShape { return self.NamedShape(); })
-        .add_member_function("Intersections", [](CFuseShapes& self) -> const ListPNamedShape & { return self.Intersections(); })
-        .add_member_function("TrimmedChilds", [](CFuseShapes& self) -> const ListPNamedShape & { return self.TrimmedChilds(); })
-        .add_member_function("TrimmedParent", [](CFuseShapes& self) -> const PNamedShape { return self.TrimmedParent(); })
-        .add_member_function("Perform", [](CFuseShapes& self) { self.Perform(); });
+        .add_member_function("NamedShape", sol::overload(
+            [](CFuseShapes& self) -> const PNamedShape { return self.NamedShape(); }
+        ))
+        .add_member_function("Intersections", sol::overload(
+            [](CFuseShapes& self) -> const ListPNamedShape & { return self.Intersections(); }
+        ))
+        .add_member_function("TrimmedChilds", sol::overload(
+            [](CFuseShapes& self) -> const ListPNamedShape & { return self.TrimmedChilds(); }
+        ))
+        .add_member_function("TrimmedParent", sol::overload(
+            [](CFuseShapes& self) -> const PNamedShape { return self.TrimmedParent(); }
+        ))
+        .add_member_function("Perform", sol::overload(
+            [](CFuseShapes& self) { self.Perform(); }
+        ));
     ns.register_type<CGroupShapes, sol::automagic_flags::none>("CGroupShapes")
         .add_constructors(
             [](const ListPNamedShape & shapeList) { return std::make_unique<CGroupShapes>(shapeList); }
         )
-        .add_member_function("NamedShape", [](CGroupShapes& self) -> const PNamedShape { return self.NamedShape(); });
+        .add_member_function("NamedShape", sol::overload(
+            [](CGroupShapes& self) -> const PNamedShape { return self.NamedShape(); }
+        ));
     ns.register_type<CMergeShapes, sol::automagic_flags::none>("CMergeShapes")
         .add_constructors(
             [](const PNamedShape shape, const PNamedShape tool) { return std::make_unique<CMergeShapes>(shape, tool); }
         )
-        .add_member_function("Perform", [](CMergeShapes& self) { self.Perform(); })
-        .add_member_function("NamedShape", [](CMergeShapes& self) -> const PNamedShape { return self.NamedShape(); });
+        .add_member_function("Perform", sol::overload(
+            [](CMergeShapes& self) { self.Perform(); }
+        ))
+        .add_member_function("NamedShape", sol::overload(
+            [](CMergeShapes& self) -> const PNamedShape { return self.NamedShape(); }
+        ));
     sol::table(ns.table()).new_enum("TrimOperation",
             "EXCLUDE", EXCLUDE,
             "INCLUDE", INCLUDE
@@ -123,22 +199,54 @@ void register_internal_boolean_operations(grunk::plugin_namespace& ns)
             [](const PNamedShape shape, const PNamedShape trimmingTool, const BOPAlgo_PaveFiller & arg2) { return std::make_unique<CTrimShape>(shape, trimmingTool, arg2); },
             [](const PNamedShape shape, const PNamedShape trimmingTool, const BOPAlgo_PaveFiller & arg2, TrimOperation arg3) { return std::make_unique<CTrimShape>(shape, trimmingTool, arg2, arg3); }
         )
-        .add_member_function("Perform", [](CTrimShape& self) { self.Perform(); })
-        .add_member_function("NamedShape", [](CTrimShape& self) -> const PNamedShape { return self.NamedShape(); });
+        .add_member_function("Perform", sol::overload(
+            [](CTrimShape& self) { self.Perform(); }
+        ))
+        .add_member_function("NamedShape", sol::overload(
+            [](CTrimShape& self) -> const PNamedShape { return self.NamedShape(); }
+        ));
     ns.register_type<GEOMAlgo_Splitter, sol::automagic_flags::none>("GEOMAlgo_Splitter")
         .add_constructors(
             []() { return std::make_unique<GEOMAlgo_Splitter>(); },
             [](opencascade::handle<NCollection_BaseAllocator> theAllocator) { return std::make_unique<GEOMAlgo_Splitter>(theAllocator); }
         )
-        .add_member_function("AddTool", [](GEOMAlgo_Splitter& self, const TopoDS_Shape & theShape) { self.AddTool(theShape); })
-        .add_member_function("Tools", [](GEOMAlgo_Splitter const& self) -> const TopTools_ListOfShape & { return self.Tools(); })
-        .add_member_function("SetLimit", [](GEOMAlgo_Splitter& self, const TopAbs_ShapeEnum aLimit) { self.SetLimit(aLimit); })
-        .add_member_function("Limit", [](GEOMAlgo_Splitter const& self) -> TopAbs_ShapeEnum { return self.Limit(); })
-        .add_member_function("SetLimitMode", [](GEOMAlgo_Splitter& self, const Standard_Integer aMode) { self.SetLimitMode(aMode); })
-        .add_member_function("LimitMode", [](GEOMAlgo_Splitter const& self) -> Standard_Integer { return self.LimitMode(); })
-        .add_member_function("Clear", [](GEOMAlgo_Splitter& self) { self.Clear(); })
+        .add_member_function("AddTool", sol::overload(
+            [](GEOMAlgo_Splitter& self, const TopoDS_Shape & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_CompSolid & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Compound & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Edge & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Face & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Shell & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Solid & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Vertex & theShape) { self.AddTool(theShape); },
+            [](GEOMAlgo_Splitter& self, const TopoDS_Wire & theShape) { self.AddTool(theShape); }
+        ))
+        .add_member_function("Tools", sol::overload(
+            [](GEOMAlgo_Splitter const& self) -> const TopTools_ListOfShape & { return self.Tools(); }
+        ))
+        .add_member_function("SetLimit", sol::overload(
+            [](GEOMAlgo_Splitter& self, const TopAbs_ShapeEnum aLimit) { self.SetLimit(aLimit); }
+        ))
+        .add_member_function("Limit", sol::overload(
+            [](GEOMAlgo_Splitter const& self) -> TopAbs_ShapeEnum { return self.Limit(); }
+        ))
+        .add_member_function("SetLimitMode", sol::overload(
+            [](GEOMAlgo_Splitter& self, const Standard_Integer aMode) { self.SetLimitMode(aMode); }
+        ))
+        .add_member_function("LimitMode", sol::overload(
+            [](GEOMAlgo_Splitter const& self) -> Standard_Integer { return self.LimitMode(); }
+        ))
+        .add_member_function("Clear", sol::overload(
+            [](GEOMAlgo_Splitter& self) { self.Clear(); }
+        ))
         .add_bases<BOPAlgo_Builder, BOPAlgo_BuilderShape, BOPAlgo_Algo, BOPAlgo_Options>();
-    ns.register_function("CBooleanOperTools_MapFaceNamesAfterBOP", [](BRepBuilderAPI_MakeShape & bop, const PNamedShape source, PNamedShape result) { CBooleanOperTools::MapFaceNamesAfterBOP(bop, source, result); });
-    ns.register_function("CBooleanOperTools_AppendNamesToShape", [](const PNamedShape source, PNamedShape target) { CBooleanOperTools::AppendNamesToShape(source, target); });
-    ns.register_function("CBooleanOperTools_Shellify", [](PNamedShape shape) -> PNamedShape { return CBooleanOperTools::Shellify(shape); });
+    ns.register_function("CBooleanOperTools_MapFaceNamesAfterBOP", sol::overload(
+        [](BRepBuilderAPI_MakeShape & bop, const PNamedShape source, PNamedShape result) { CBooleanOperTools::MapFaceNamesAfterBOP(bop, source, result); }
+    ));
+    ns.register_function("CBooleanOperTools_AppendNamesToShape", sol::overload(
+        [](const PNamedShape source, PNamedShape target) { CBooleanOperTools::AppendNamesToShape(source, target); }
+    ));
+    ns.register_function("CBooleanOperTools_Shellify", sol::overload(
+        [](PNamedShape shape) -> PNamedShape { return CBooleanOperTools::Shellify(shape); }
+    ));
 }

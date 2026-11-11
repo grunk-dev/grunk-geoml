@@ -78,25 +78,63 @@ void register_naming_choosing(grunk::plugin_namespace& ns)
             [](const TopoDS_Vertex & s) { return Shape(s); },
             [](const TopoDS_Wire & s) { return Shape(s); }
         )
-        .add_member_function("shape", [](Shape const& self) -> TopoDS_Shape { return self.shape(); })
-        .add_member_function("direct_subshapes", [](Shape const& self) -> const std::vector<Shape> & { return self.direct_subshapes(); })
-        .add_member_function("get_subshapes", [](Shape const& self) -> Shape { return self.get_subshapes(); })
-        .add_member_function("unique_element", [](Shape const& self) -> Shape { return self.unique_element(); })
-        .add_member_function("unique_element_or", [](Shape const& self, const Shape & other) -> Shape { return self.unique_element_or(other); })
-        .add_member_function("add_meta_tag", [](Shape& self, const std::string & tag) { self.add_meta_tag(tag); })
-        .add_member_function("add_tag_track", [](Shape& self, const TagTrack & tt) { self.add_tag_track(tt); })
-        .add_member_function("get_tag_tracks", [](Shape const& self) -> const std::vector<TagTrack> & { return self.get_tag_tracks(); })
-        .add_member_function("apply_tag_tracks", [](Shape& self) { self.apply_tag_tracks(); })
-        .add_member_function("size", [](Shape const& self) -> size_t { return self.size(); })
-        .add_member_function("is_empty", [](Shape const& self) -> bool { return self.is_empty(); })
-        .add_member_function("is_null", [](Shape const& self) -> bool { return self.is_null(); })
-        .add_member_function("is_type", [](Shape const& self, TopAbs_ShapeEnum shape_type) -> bool { return self.is_type(shape_type); })
+        .add_member_function("shape", sol::overload(
+            [](Shape const& self) -> TopoDS_Shape { return self.shape(); }
+        ))
+        .add_member_function("direct_subshapes", sol::overload(
+            [](Shape const& self) -> const std::vector<Shape> & { return self.direct_subshapes(); }
+        ))
+        .add_member_function("get_subshapes", sol::overload(
+            [](Shape const& self) -> Shape { return self.get_subshapes(); }
+        ))
+        .add_member_function("unique_element", sol::overload(
+            [](Shape const& self) -> Shape { return self.unique_element(); }
+        ))
+        .add_member_function("unique_element_or", sol::overload(
+            [](Shape const& self, const Shape & other) -> Shape { return self.unique_element_or(other); }
+        ))
+        .add_member_function("add_meta_tag", sol::overload(
+            [](Shape& self, const std::string & tag) { self.add_meta_tag(tag); }
+        ))
+        .add_member_function("add_tag_track", sol::overload(
+            [](Shape& self, const TagTrack & tt) { self.add_tag_track(tt); }
+        ))
+        .add_member_function("get_tag_tracks", sol::overload(
+            [](Shape const& self) -> const std::vector<TagTrack> & { return self.get_tag_tracks(); }
+        ))
+        .add_member_function("apply_tag_tracks", sol::overload(
+            [](Shape& self) { self.apply_tag_tracks(); }
+        ))
+        .add_member_function("size", sol::overload(
+            [](Shape const& self) -> size_t { return self.size(); }
+        ))
+        .add_member_function("is_empty", sol::overload(
+            [](Shape const& self) -> bool { return self.is_empty(); }
+        ))
+        .add_member_function("is_null", sol::overload(
+            [](Shape const& self) -> bool { return self.is_null(); }
+        ))
+        .add_member_function("is_type", sol::overload(
+            [](Shape const& self, TopAbs_ShapeEnum shape_type) -> bool { return self.is_type(shape_type); }
+        ))
         .add_member_function("is_same", sol::overload(
             [](Shape const& self, const Shape & other) -> bool { return self.is_same(other); },
-            [](Shape const& self, const TopoDS_Shape & other) -> bool { return self.is_same(other); }
+            [](Shape const& self, const TopoDS_Shape & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_CompSolid & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Compound & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Edge & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Face & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Shell & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Solid & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Vertex & other) -> bool { return self.is_same(other); },
+            [](Shape const& self, const TopoDS_Wire & other) -> bool { return self.is_same(other); }
         ))
-        .add_member_function("has_subshape", [](Shape const& self, const Shape & shape) -> bool { return self.has_subshape(shape); })
-        .add_member_function("has_origin", [](Shape const& self) -> bool { return self.has_origin(); })
+        .add_member_function("has_subshape", sol::overload(
+            [](Shape const& self, const Shape & shape) -> bool { return self.has_subshape(shape); }
+        ))
+        .add_member_function("has_origin", sol::overload(
+            [](Shape const& self) -> bool { return self.has_origin(); }
+        ))
         .add_member_function("is_unmodified_descendent_of", sol::overload(
             [](Shape const& self, const Shape & other) -> bool { return self.is_unmodified_descendent_of(other); },
             [](Shape const& self, const Shape & other, int max_depth) -> bool { return self.is_unmodified_descendent_of(other, max_depth); }
@@ -125,6 +163,8 @@ void register_naming_choosing(grunk::plugin_namespace& ns)
             [](Shape const& self, const Shape & other) -> bool { return self.is_ancestor_of(other); },
             [](Shape const& self, const Shape & other, int max_depth) -> bool { return self.is_ancestor_of(other, max_depth); }
         ))
-        .add_member_function("has_tag", [](Shape const& self, const std::string & tag) -> bool { return self.has_tag(tag); });
+        .add_member_function("has_tag", sol::overload(
+            [](Shape const& self, const std::string & tag) -> bool { return self.has_tag(tag); }
+        ));
 
 }
