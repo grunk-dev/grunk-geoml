@@ -43,9 +43,15 @@
 
 #include <TopExp.hxx>
 #include <TopAbs_ShapeEnum.hxx>
+#include <TopoDS_CompSolid.hxx>
+#include <TopoDS_Compound.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 #include <TopoDS.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 
@@ -64,36 +70,85 @@ inline TopTools_IndexedMapOfShape indexed_map_of(TopoDS_Shape const& shape, TopA
 
 } // namespace geoml_plugin
 
+// sol2's own base-class-aware usertype conversion (letting a derived TopoDS_*
+// value satisfy a TopoDS_Shape const& parameter) only reliably applies to a
+// by-value parameter, not a reference one - confirmed via a real CI run (passed
+// on ubuntu-latest/GCC, failed on windows-latest/MSVC) hitting exactly this:
+// geoml.count_faces(shell) with shell a TopoDS_Shell. Same restriction, same fix
+// shape as codegen/hooks.py's own SHAPE_TOPODS_WIDEN_CLASS for geoml::Shape's
+// generated constructor (see that comment for the full story) - here applied by
+// hand since these four functions are hand-written, not generated. One exact-
+// match overload candidate per concrete TopoDS_Shape subtype, all delegating to
+// the same real TopoDS_Shape-taking implementation via a genuine, always-safe
+// C++ implicit upcast. Two macro variants (not a variadic/generic one) because
+// each sol::overload candidate needs a fixed, non-template operator() - sol2
+// inspects a candidate's own function_traits to build its stack-arg checkers,
+// so a generic lambda (`auto&&... args`) does not work here (confirmed
+// directly: register_function rejected it, "no matching member function").
+// extra_params/extra_args: sol::overload candidates must each have a fixed,
+// non-template operator() (sol2 inspects each candidate's own function_traits
+// to build its stack-arg checkers) - a generic/templated lambda (`auto&&...`)
+// does not work here, confirmed directly (register_function rejected it
+// outright, "no matching member function"). extra_params/extra_args spell out
+// the one non-shape parameter nth_face/nth_edge need (nothing for
+// count_faces/count_edges) as literal macro text instead.
+#define GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_1(fn) \
+    sol::overload( \
+        [fn](TopoDS_Shape const& shape) { return fn(shape); }, \
+        [fn](TopoDS_CompSolid const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Compound const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Edge const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Face const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Shell const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Solid const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Vertex const& shape) { return fn(shape); }, \
+        [fn](TopoDS_Wire const& shape) { return fn(shape); } \
+    )
+#define GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_2(fn) \
+    sol::overload( \
+        [fn](TopoDS_Shape const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_CompSolid const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Compound const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Edge const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Face const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Shell const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Solid const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Vertex const& shape, int index) { return fn(shape, index); }, \
+        [fn](TopoDS_Wire const& shape, int index) { return fn(shape, index); } \
+    )
+
 inline void register_topexp_extras(grunk::plugin_namespace& ns)
 {
-    ns.register_function(
-        "nth_face",
-        [](TopoDS_Shape const& shape, int index) -> TopoDS_Face {
-            auto map = geoml_plugin::indexed_map_of(shape, TopAbs_FACE);
-            if (index < 0 || index >= map.Extent()) {
-                throw std::runtime_error(
-                    "nth_face: index out of range (0-based, shape has " + std::to_string(map.Extent()) + " unique faces)"
-                );
-            }
-            return TopoDS::Face(map.FindKey(index + 1)); // OCCT's own map is 1-based
+    auto nth_face = [](TopoDS_Shape const& shape, int index) -> TopoDS_Face {
+        auto map = geoml_plugin::indexed_map_of(shape, TopAbs_FACE);
+        if (index < 0 || index >= map.Extent()) {
+            throw std::runtime_error(
+                "nth_face: index out of range (0-based, shape has " + std::to_string(map.Extent()) + " unique faces)"
+            );
         }
-    );
-    ns.register_function(
-        "nth_edge",
-        [](TopoDS_Shape const& shape, int index) -> TopoDS_Edge {
-            auto map = geoml_plugin::indexed_map_of(shape, TopAbs_EDGE);
-            if (index < 0 || index >= map.Extent()) {
-                throw std::runtime_error(
-                    "nth_edge: index out of range (0-based, shape has " + std::to_string(map.Extent()) + " unique edges)"
-                );
-            }
-            return TopoDS::Edge(map.FindKey(index + 1)); // OCCT's own map is 1-based
+        return TopoDS::Face(map.FindKey(index + 1)); // OCCT's own map is 1-based
+    };
+    auto nth_edge = [](TopoDS_Shape const& shape, int index) -> TopoDS_Edge {
+        auto map = geoml_plugin::indexed_map_of(shape, TopAbs_EDGE);
+        if (index < 0 || index >= map.Extent()) {
+            throw std::runtime_error(
+                "nth_edge: index out of range (0-based, shape has " + std::to_string(map.Extent()) + " unique edges)"
+            );
         }
-    );
-    ns.register_function("count_faces", [](TopoDS_Shape const& shape) -> int {
+        return TopoDS::Edge(map.FindKey(index + 1)); // OCCT's own map is 1-based
+    };
+    auto count_faces = [](TopoDS_Shape const& shape) -> int {
         return geoml_plugin::indexed_map_of(shape, TopAbs_FACE).Extent();
-    });
-    ns.register_function("count_edges", [](TopoDS_Shape const& shape) -> int {
+    };
+    auto count_edges = [](TopoDS_Shape const& shape) -> int {
         return geoml_plugin::indexed_map_of(shape, TopAbs_EDGE).Extent();
-    });
+    };
+
+    ns.register_function("nth_face", GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_2(nth_face));
+    ns.register_function("nth_edge", GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_2(nth_edge));
+    ns.register_function("count_faces", GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_1(count_faces));
+    ns.register_function("count_edges", GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_1(count_edges));
+
+#undef GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_1
+#undef GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_2
 }

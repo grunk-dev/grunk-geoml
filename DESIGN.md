@@ -1580,3 +1580,48 @@ worth a real fix next time this target needs to run.
 
 Cross-platform CI confirmation (the only check that actually exercises
 AppleClang/MSVC) is still pending as of this entry.
+
+## `geoml.count_faces(TopoDS_Shell)` cross-platform sol2 failure: same restriction, hand-written call sites (2026-11-11)
+
+A second, follow-up CI run (after the `geoml.Shape.new` fix above actually
+landed and got past that call) surfaced the *same* sol2 restriction
+(reference-parameter derived-to-base dispatch not reliably applying across
+AppleClang/MSVC, see the entry above for the full mechanism) at a different
+call site, this time on `windows-latest`/MSVC only:
+
+```
+[sol2] An exception occurred: stack index 1, expected userdata, received
+sol.TopoDS_Shell: value at this index does not properly reflect the desired
+type (bad argument into 'int(const TopoDS_Shape&)')
+```
+
+localized to `examples/load_carrier.grr.yml`'s `helpers.remove_two_faces`,
+specifically `geoml.count_faces(shell)` where `shell` is a `TopoDS_Shell`
+(built by `helpers.make_shell`) and `count_faces` is declared
+`[](TopoDS_Shape const& shape) -> int` in `src/topexp_extras.hpp`.
+
+Unlike `geoml::Shape`'s constructor, `nth_face`/`nth_edge`/`count_faces`/
+`count_edges` (all in `src/topexp_extras.hpp`) are **hand-written**
+`ns.register_function(...)` calls, not generated — so the fix is applied by
+hand, same shape as the codegen one: every concrete `TopoDS_Shape` subtype
+gets its own exact-match overload candidate (via `sol::overload(...)`, which
+`grunk::plugin_namespace::register_function`/`create_function_meta` already
+support directly - confirmed via the existing precedent in
+`src/transform_extras.hpp`'s `Transform::operator()` overload set), all
+delegating to the one real `TopoDS_Shape`-taking implementation through a
+genuine, always-safe C++ implicit upcast.
+
+One wrinkle not present in the codegen case: a `sol::overload` candidate must
+have a fixed, non-template `operator()` - sol2 inspects each candidate's own
+`function_traits` to build its stack-arg checkers, so a single generic/
+templated lambda (`auto&&... args`) covering all 4 functions does not work
+(confirmed directly: `register_function` rejected it, "no matching member
+function"). `src/topexp_extras.hpp` uses two small macros instead
+(`GEOML_PLUGIN_TOPODS_SHAPE_OVERLOAD_1`/`_2`, for the 1-arg and 2-arg
+functions respectively), each expanding to 9 concrete, non-template lambdas.
+
+Verified locally (Linux): `pixi run -e default build` (clean), `pixi run -e
+default test` (23/23 ctest passed), `pixi run -e default run_examples` (all 6
+recipes passed, including `load_carrier.grr.yml`: `export_brep succeeded`).
+Cross-platform CI confirmation (macOS/Windows, the actual repro platform for
+this one) is still pending as of this entry - same caveat as the entry above.
