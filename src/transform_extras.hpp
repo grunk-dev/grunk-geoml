@@ -32,6 +32,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #include <grunk/dynamic.hpp>
 
 #include <geoml/transformations/Transform.h>
@@ -97,6 +99,14 @@ inline opencascade::handle<Geom_Curve> transform_curve(geoml::Transform const& s
     TopLoc_Location loc;
     Standard_Real first, last;
     opencascade::handle<Geom_Curve> result = BRep_Tool::Curve(transformed_edge, loc, first, last);
+    // TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused -
+    // see DESIGN.md/the grunk-geoml CI issue this is chasing): confirm what
+    // transform_curve() actually hands back to Lua before as_vec ever sees it.
+    std::cerr << "[DEBUG transform_curve] input.IsNull()=" << curve.IsNull()
+              << " result.IsNull()=" << result.IsNull()
+              << " result.DynamicType="
+              << (result.IsNull() ? "<null>" : result->DynamicType()->Name())
+              << std::endl;
     result->Transform(loc.Transformation());
     return result;
 }

@@ -106,6 +106,16 @@ steps: |
   curve2 = transform2(base_curve)
   curve3 = transform3(base_curve)
 
+  -- TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused):
+  -- isolate as_vec per curve, one at a time, so a failure on only one of the
+  -- three doesn't get masked by the combined call below.
+  local ok1, err1 = pcall(function() occt.Geom_Curve.as_vec(curve1) end)
+  print("[DEBUG as_vec curve1] ok=" .. tostring(ok1) .. " err=" .. tostring(err1))
+  local ok2, err2 = pcall(function() occt.Geom_Curve.as_vec(curve2) end)
+  print("[DEBUG as_vec curve2] ok=" .. tostring(ok2) .. " err=" .. tostring(err2))
+  local ok3, err3 = pcall(function() occt.Geom_Curve.as_vec(curve3) end)
+  print("[DEBUG as_vec curve3] ok=" .. tostring(ok3) .. " err=" .. tostring(err3))
+
   -- geo::interpolate_curves([curve1, curve2, curve3]) -> geoml.interpolate_curves,
   -- fed via the native occt.Geom_Curve.as_vec(...) (grunk-occt's own
   -- src/geom/geom_extras.hpp) - no degree/continuity arguments in the original
