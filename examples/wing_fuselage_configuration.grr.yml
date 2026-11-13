@@ -508,15 +508,25 @@ recipes:
       -- leading/trailing guide curves (the lower surface reusing the upper's own
       -- guides is exactly what the original itself does, not a copy-paste slip -
       -- see fuselage_wing_configuration.cpp:964's own list_of_guides_upper_wing).
-      upper_profiles = occt.Geom_Curve.as_vec(i_u_profile_curve, m_u_profile_curve, o_u_profile_curve)
-      wing_guides = occt.Geom_Curve.as_vec(leading_curve, trailing_curve)
-      lower_profiles = occt.Geom_Curve.as_vec(i_l_profile_curve, m_l_profile_curve, o_l_profile_curve)
+      --
+      -- TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused): same
+      -- substitution as wing_loft.grr.yml's own - occt.Geom_Curve.as_vec(...) hits
+      -- the same macOS-only "Cannot create std::vector" failure here too (this
+      -- recipe's own CI log, 2026-11-13), confirming it's grunk's own
+      -- with_std_vector mechanism for Handle(Geom_Curve) that's broken on macOS/
+      -- AppleClang in general, not anything specific to wing_loft's curves.
+      -- geoml.debug_as_vec3 (src/transform_extras.hpp) is variadic - it drops in
+      -- here unchanged despite the "3" in its name, for both the 2-arg and 3-arg
+      -- calls below.
+      upper_profiles = geoml.debug_as_vec3(i_u_profile_curve, m_u_profile_curve, o_u_profile_curve)
+      wing_guides = geoml.debug_as_vec3(leading_curve, trailing_curve)
+      lower_profiles = geoml.debug_as_vec3(i_l_profile_curve, m_l_profile_curve, o_l_profile_curve)
 
       upper_wing_surface = helpers.exchange_uv(geoml.interpolate_curve_network(upper_profiles, wing_guides, 1.0))
       lower_wing_surface = geoml.interpolate_curve_network(lower_profiles, wing_guides, 1.0)
 
-      inner_cap_edges = occt.Geom_Curve.as_vec(i_u_profile_curve, i_l_profile_curve)
-      outer_cap_edges = occt.Geom_Curve.as_vec(o_u_profile_curve, o_l_profile_curve)
+      inner_cap_edges = geoml.debug_as_vec3(i_u_profile_curve, i_l_profile_curve)
+      outer_cap_edges = geoml.debug_as_vec3(o_u_profile_curve, o_l_profile_curve)
       inner_wing_cap_surface = geoml.interpolate_curves(inner_cap_edges)
       outer_wing_cap_surface = helpers.exchange_uv(geoml.interpolate_curves(outer_cap_edges))
 
