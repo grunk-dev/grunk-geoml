@@ -91,6 +91,21 @@
 # entry for the full story, including the one grunk-occt-side regression this
 # flag caused and how it was fixed there).
 #
+# Bumped again 2026-11-13 to 6bf642412c7d501101585a41370050386551f759 (grunk's
+# own main, post PR grunk-dev/grunk#315 merge) - lands generate.py's
+# emit_callable() always wrapping in sol::overload(...), even for a single
+# discovered C++ overload: a CodeGenerator subclass's own emit_callable() can
+# legally splice multiple comma-separated candidate lambdas into what the
+# generator still counts as one logical overload - exactly what this repo's own
+# codegen/hooks.py TopoDS_Shape-widening emit_callable does (one candidate per
+# concrete subtype). Without the unconditional wrap, that widening spliced
+# extra literal positional arguments directly into register_function()/
+# add_member_function(), both of which take exactly one Func parameter: a hard
+# compile error, not a silent bug. Pure python/grunk/codegen/generate.py
+# change - no effect on already-generated generated/*.cpp or the runtime C++
+# libraries, only on the next `generate_code` run. grunk-occt's own pin bumped
+# to the same commit.
+#
 # Optional -D GRUNK_INSTALL_NAME=<name>: an alternate install-directory name under
 # .deps/ (e.g. "grunk-ad" for [feature.ad.tasks]'s own invocation) - defaults to
 # "grunk", same convention as grunk-occt.
@@ -100,7 +115,7 @@ cmake_minimum_required(VERSION 3.15)
 if(NOT DEFINED GRUNK_INSTALL_NAME)
     set(GRUNK_INSTALL_NAME "grunk")
 endif()
-set(GRUNK_REV "ba3b775d89509d1f94e41c27092919561c247304")
+set(GRUNK_REV "6bf642412c7d501101585a41370050386551f759")
 
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(GRUNK_PREFIX "${PROJECT_ROOT}/.deps/${GRUNK_INSTALL_NAME}")
