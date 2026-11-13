@@ -50,6 +50,24 @@ def run_recipe(state: "grunk.state", recipe_path: Path) -> "grunk.Recipe":
     return recipe
 
 
+def run_recipe_isolated(state: "grunk.state", recipe_path: Path, failures: list) -> None:
+    # TEMP DIAGNOSTIC (remove alongside debug_cross_plugin_as_vec.grr.yml once the
+    # macOS-only occt.Geom_Curve.as_vec(...) failure is root-caused): run_recipe's
+    # own sys.exit(1) on failure would normally kill this whole script at the
+    # first failing recipe - isolating each recipe's own exception here instead
+    # lets every recipe in main()'s list actually run and report in ONE CI log,
+    # which is exactly what distinguishing "still broken the same way" from "the
+    # new occt-origin-only diagnostic recipe passes" needs.
+    try:
+        run_recipe(state, recipe_path)
+    except SystemExit as exc:
+        failures.append(recipe_path.name)
+        print(f"  {recipe_path.name} FAILED (see above) - continuing with remaining recipes")
+    except Exception as exc:  # noqa: BLE001 - deliberately broad, see comment above
+        failures.append(recipe_path.name)
+        print(f"  {recipe_path.name} FAILED: {exc}")
+
+
 def run_ad_translate(state: "grunk.state", has_ad: bool) -> None:
     recipe_path = EXAMPLES_DIR / "ad_translate.grr.yml"
     print(f"Running {recipe_path.name} ...")
@@ -115,12 +133,20 @@ def main() -> None:
     grunk.plugin.load_native(state, occt_plugin_path)
     grunk.plugin.load_native(state, geoml_plugin_path)
 
-    run_recipe(state, EXAMPLES_DIR / "load_carrier.grr.yml")
-    run_recipe(state, EXAMPLES_DIR / "wing_loft.grr.yml")
-    run_recipe(state, EXAMPLES_DIR / "airplane_seats.grr.yml")
-    run_recipe(state, EXAMPLES_DIR / "gasturbine_cavity_update.grr.yml")
+    # TEMP DIAGNOSTIC (remove alongside debug_cross_plugin_as_vec.grr.yml and
+    # run_recipe_isolated once the macOS-only occt.Geom_Curve.as_vec(...) failure
+    # is root-caused): every recipe below runs via run_recipe_isolated rather than
+    # run_recipe directly, so one recipe's failure doesn't prevent the rest
+    # (including the new diagnostic recipe) from running and reporting in this
+    # same CI log.
+    failures: list = []
+    run_recipe_isolated(state, EXAMPLES_DIR / "load_carrier.grr.yml", failures)
+    run_recipe_isolated(state, EXAMPLES_DIR / "debug_cross_plugin_as_vec.grr.yml", failures)
+    run_recipe_isolated(state, EXAMPLES_DIR / "wing_loft.grr.yml", failures)
+    run_recipe_isolated(state, EXAMPLES_DIR / "airplane_seats.grr.yml", failures)
+    run_recipe_isolated(state, EXAMPLES_DIR / "gasturbine_cavity_update.grr.yml", failures)
     if adolc_plugin_path is None:
-        run_recipe(state, EXAMPLES_DIR / "wing_fuselage_configuration.grr.yml")
+        run_recipe_isolated(state, EXAMPLES_DIR / "wing_fuselage_configuration.grr.yml", failures)
     else:
         # geoml.nurbs_curve's own std::vector<Standard_Real> weights/knots
         # parameters (generated/curves.cpp) are NOT dual-emitted for AD the way
@@ -137,6 +163,9 @@ def main() -> None:
         # skipped under AD rather than faked.
         print("Skipping wing_fuselage_configuration.grr.yml under AD (occt.real_vec has no AD-portable counterpart)")
     run_ad_translate(state, has_ad=adolc_plugin_path is not None)
+
+    if failures:
+        sys.exit(f"FAILED: {', '.join(failures)}")
 
 
 if __name__ == "__main__":
