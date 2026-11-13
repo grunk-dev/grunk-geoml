@@ -32,8 +32,6 @@
 
 #pragma once
 
-#include <iostream>
-
 #include <grunk/dynamic.hpp>
 
 #include <geoml/transformations/Transform.h>
@@ -99,69 +97,14 @@ inline opencascade::handle<Geom_Curve> transform_curve(geoml::Transform const& s
     TopLoc_Location loc;
     Standard_Real first, last;
     opencascade::handle<Geom_Curve> result = BRep_Tool::Curve(transformed_edge, loc, first, last);
-    // TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused -
-    // see DESIGN.md/the grunk-geoml CI issue this is chasing): confirm what
-    // transform_curve() actually hands back to Lua before as_vec ever sees it.
-    std::cerr << "[DEBUG transform_curve] input.IsNull()=" << curve.IsNull()
-              << " result.IsNull()=" << result.IsNull()
-              << " result.DynamicType="
-              << (result.IsNull() ? "<null>" : result->DynamicType()->Name())
-              << std::endl;
     result->Transform(loc.Transformation());
     return result;
 }
 
 } // namespace geoml_plugin
 
-// TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused): a
-// hand-rolled copy of grunk's own with_std_vector<Handle<T>>() mechanism
-// (usertype_proxy.hpp's convert_one/from_varargs - a per-element nested
-// sol::protected_function identity-cast call made while iterating a raw
-// sol::variadic_args), fully instrumented. grunk itself is a pinned, freshly-
-// cloned dependency in CI, so it can't be patched in place here - this
-// reproduces the exact same code path from geoml's own side instead, to see
-// where the macOS-only divergence actually happens: per-value as_vec(curveN)
-// already succeeds individually on both platforms, but the combined 3-arg
-// as_vec(curve1, curve2, curve3) only fails on macOS - so the loop itself
-// (iterating raw variadic_args while making nested Lua calls) is the prime
-// suspect, not any single value's conversion.
-inline void register_debug_as_vec3(grunk::plugin_namespace& ns)
-{
-    ns.register_function("debug_as_vec3", [](sol::variadic_args va) -> std::vector<opencascade::handle<Geom_Curve>> {
-        lua_State* L = va.lua_state();
-        sol::state_view lua(L);
-        sol::protected_function cast_to_element = sol::make_object(
-            lua, [](opencascade::handle<Geom_Curve> x) -> opencascade::handle<Geom_Curve> { return x; }
-        );
-
-        std::vector<opencascade::handle<Geom_Curve>> ret;
-        int i = 0;
-        for (auto const& v : va) {
-            ++i;
-            std::cerr << "[DEBUG debug_as_vec3] iter=" << i
-                      << " top_before=" << lua_gettop(L)
-                      << " get_type=" << static_cast<int>(v.get_type())
-                      << std::endl;
-            sol::protected_function_result res = cast_to_element(v);
-            std::cerr << "[DEBUG debug_as_vec3] iter=" << i
-                      << " top_after=" << lua_gettop(L)
-                      << " valid=" << res.valid()
-                      << std::endl;
-            if (!res.valid()) {
-                sol::error err = res;
-                std::cerr << "[DEBUG debug_as_vec3] iter=" << i << " error=" << err.what() << std::endl;
-                throw std::runtime_error("debug_as_vec3 failed at iter " + std::to_string(i));
-            }
-            ret.push_back(res.get<opencascade::handle<Geom_Curve>>());
-        }
-        return ret;
-    });
-}
-
 inline void register_transform_extras(grunk::plugin_namespace& ns)
 {
-    register_debug_as_vec3(ns);
-
     ns.modify_type<geoml::Transform>("Transform")
         .add_constructors(
             []() { return geoml::Transform(); },

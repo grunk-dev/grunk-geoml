@@ -106,21 +106,11 @@ steps: |
   curve2 = transform2(base_curve)
   curve3 = transform3(base_curve)
 
-  -- TEMP DEBUG (remove once the macOS-only as_vec failure is root-caused): the
-  -- recipe's decorated/parametric steps: environment is LAZY (see grunk's own
-  -- CLAUDE.md) - a registered function call that feeds nothing the recipe's
-  -- "ok" output actually reads never gets evaluated at all. So the instrumented
-  -- path has to be the one actually consumed below, not a discarded pcall
-  -- side-call - geoml.debug_as_vec3 (src/transform_extras.hpp) is swapped in
-  -- here as a drop-in replacement for occt.Geom_Curve.as_vec, since it
-  -- produces the identical std::vector<Handle(Geom_Curve)> the rest of this
-  -- recipe (interpolate_curves) consumes either way.
-  --
   -- geo::interpolate_curves([curve1, curve2, curve3]) -> geoml.interpolate_curves,
   -- fed via the native occt.Geom_Curve.as_vec(...) (grunk-occt's own
   -- src/geom/geom_extras.hpp) - no degree/continuity arguments in the original
   -- either, so the single-argument overload is used here too.
-  cv = geoml.debug_as_vec3(curve1, curve2, curve3)
+  cv = occt.Geom_Curve.as_vec(curve1, curve2, curve3)
   loft_surface = geoml.interpolate_curves(cv)
 
   -- grocc::BRepBuilderAPI_MakeFace(wing_surf, tol) -> grocc::BRepTools::Write(...) -
