@@ -110,13 +110,27 @@ jobs:
           git clone https://github.com/grunk-dev/grunk-occt.git ../grunk-occt
           git -C ../grunk-occt checkout ${{ steps.occt-sha.outputs.sha }}
 
+      # Only build is cached here, keyed by grunk-occt's own HEAD SHA (misses on
+      # every grunk-occt commit, same as before) - .deps is deliberately NOT part
+      # of this cache. grunk itself is reused directly from this job's own
+      # already-built .deps/grunk (see the symlink step below), cheaper than
+      # cloning+building it a second time for the sibling checkout.
       - name: Cache grunk-occt sibling build
         uses: actions/cache@v6
         with:
-          path: |
-            ../grunk-occt/.deps
-            ../grunk-occt/build
+          path: ../grunk-occt/build
           key: ${{ runner.os }}-grunk-occt-sibling-${{ steps.occt-sha.outputs.sha }}
+
+      # install_grunk.cmake is copied verbatim between this repo and grunk-occt,
+      # pinned to the same GRUNK_REV, and idempotent (skips if its install
+      # prefix already has grunkConfig.cmake) - so pointing grunk-occt's own
+      # .deps/grunk at the copy this job already built above makes its own
+      # install_grunk step below a no-op skip instead of a second clone+build.
+      - name: Reuse grunk for the grunk-occt sibling build
+        shell: bash
+        run: |
+          mkdir -p ../grunk-occt/.deps
+          ln -s "$PWD/.deps/grunk" ../grunk-occt/.deps/grunk
 
       - name: Build grunk-occt (sibling, for run_examples)
         working-directory: ../grunk-occt
@@ -221,8 +235,8 @@ jobs:
 
       # Only build-ad is cached here, keyed by grunk-occt's own HEAD SHA (so it
       # misses on every grunk-occt commit, same as before) - .deps is deliberately
-      # NOT part of this cache. ADOL-C/adOCCT are reused directly from this job's
-      # own already-built .deps (see the symlink step below), which is both
+      # NOT part of this cache. grunk/ADOL-C/adOCCT are reused directly from this
+      # job's own already-built .deps (see the symlink step below), which is both
       # cheaper and unaffected by grunk-occt's SHA changing.
       - name: Cache grunk-occt sibling AD build
         uses: actions/cache@v6
@@ -230,20 +244,28 @@ jobs:
           path: ../grunk-occt/build-ad
           key: ${{ runner.os }}-grunk-occt-sibling-ad-${{ steps.occt-sha.outputs.sha }}
 
-      # install_adolc.sh/install_adocct.sh are copied verbatim between this repo
-      # and grunk-occt, and both are idempotent (skip the build if their install
-      # prefix already has the relevant marker file) - so pointing grunk-occt's
-      # own .deps/adolc and .deps/adocct at the copies this job already built a
-      # few steps above (for grunk-geoml's own AD build) makes grunk-occt's own
-      # install_adolc/install_adocct steps below into no-op skips, instead of
-      # rebuilding ADOL-C+adOCCT from source a second time (the real bottleneck
-      # here, not the actions/cache miss on grunk-occt's HEAD SHA - that miss is
-      # unavoidable on every grunk-occt commit and is otherwise harmless once
-      # this reuse is in place). Symlinked, not copied, since both checkouts are
-      # on the same runner filesystem.
-      - name: Reuse ADOL-C/adOCCT for the grunk-occt sibling build
+      # install_grunk.cmake/install_adolc.sh/install_adocct.sh are all copied
+      # verbatim between this repo and grunk-occt (grunk pinned to the same
+      # GRUNK_REV, both installed as .deps/grunk-ad on either side), and all
+      # three are idempotent (skip the build if their install prefix already
+      # has the relevant marker file) - so pointing grunk-occt's own .deps/
+      # grunk-ad, .deps/adolc, and .deps/adocct at the copies this job already
+      # built a few steps above (for grunk-geoml's own AD build) makes
+      # grunk-occt's own install_grunk/install_adolc/install_adocct steps below
+      # into no-op skips, instead of rebuilding all three from source a second
+      # time (the real bottleneck here, not the actions/cache miss on
+      # grunk-occt's HEAD SHA - that miss is unavoidable on every grunk-occt
+      # commit and is otherwise harmless once this reuse is in place).
+      # Symlinked, not copied, since both checkouts are on the same runner
+      # filesystem. Reusing .deps/adocct specifically isn't just an optimization
+      # here - see README.md's "Algorithmic differentiation (AD)" section: two
+      # independently-built adOCCT installs would be an ODR violation
+      # (mismatched adtl::adouble) the moment a recipe mixes occt.*/geoml.* AD
+      # values, as run_examples' own recipes do.
+      - name: Reuse grunk/ADOL-C/adOCCT for the grunk-occt sibling build
         run: |
           mkdir -p ../grunk-occt/.deps
+          ln -s "$PWD/.deps/grunk-ad" ../grunk-occt/.deps/grunk-ad
           ln -s "$PWD/.deps/adolc" ../grunk-occt/.deps/adolc
           ln -s "$PWD/.deps/adocct" ../grunk-occt/.deps/adocct
 
