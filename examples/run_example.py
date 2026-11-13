@@ -68,6 +68,28 @@ def run_recipe_isolated(state: "grunk.state", recipe_path: Path, failures: list)
         print(f"  {recipe_path.name} FAILED: {exc}")
 
 
+def run_as_vec_variants_probe(state: "grunk.state", failures: list) -> None:
+    # TEMP DIAGNOSTIC (remove alongside debug_as_vec_variants.grr.yml and
+    # geom_extras.hpp's own debug probes once the macOS-only
+    # occt.Geom_Curve.as_vec(...) failure is root-caused - see that recipe's own
+    # top comment). Each of v1/v2/v3 is read independently so one probe's failure
+    # doesn't prevent the others from reporting in this same CI log.
+    recipe_path = EXAMPLES_DIR / "debug_as_vec_variants.grr.yml"
+    print(f"Running {recipe_path.name} ...")
+    recipe = state.read(str(recipe_path))
+    for output_name, label in (
+        ("v1", "debug_member_novoverload (member fn, no overload)"),
+        ("v2", "debug_namespace_overload (namespace fn, with overload)"),
+        ("v3", "debug_member_overload (member fn, with overload - expected to fail, matches real as_vec)"),
+    ):
+        try:
+            recipe.get_output(output_name).value()
+            print(f"  {output_name} [{label}]: OK")
+        except Exception as exc:  # noqa: BLE001 - deliberately broad, see comment above
+            failures.append(f"{recipe_path.name}::{output_name}")
+            print(f"  {output_name} [{label}]: FAILED: {exc}")
+
+
 def run_ad_translate(state: "grunk.state", has_ad: bool) -> None:
     recipe_path = EXAMPLES_DIR / "ad_translate.grr.yml"
     print(f"Running {recipe_path.name} ...")
@@ -142,6 +164,7 @@ def main() -> None:
     failures: list = []
     run_recipe_isolated(state, EXAMPLES_DIR / "load_carrier.grr.yml", failures)
     run_recipe_isolated(state, EXAMPLES_DIR / "debug_cross_plugin_as_vec.grr.yml", failures)
+    run_as_vec_variants_probe(state, failures)
     run_recipe_isolated(state, EXAMPLES_DIR / "wing_loft.grr.yml", failures)
     run_recipe_isolated(state, EXAMPLES_DIR / "airplane_seats.grr.yml", failures)
     run_recipe_isolated(state, EXAMPLES_DIR / "gasturbine_cavity_update.grr.yml", failures)

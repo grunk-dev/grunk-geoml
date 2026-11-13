@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# TEMP DIAGNOSTIC (remove once the macOS-only occt.Geom_Curve.as_vec(...) failure
+# is root-caused - see DESIGN.md/the grunk-geoml CI issue this is chasing, and
+# debug_cross_plugin_as_vec.grr.yml's own top comment for the investigation so
+# far). That recipe ruled out cross-plugin curve origin as the cause - the real
+# occt.Geom_Curve.as_vec(...) fails even for curves built entirely via occt.*
+# calls. This recipe isolates the two remaining structural differences between
+# that real, broken as_vec (grunk's with_std_vector(), registered via
+# add_member_function + sol::overload(from_table, from_varargs)) and
+# grunk-geoml's own known-working debug_as_vec3 (registered via a plain
+# register_function, no overload, no usertype): three probes added to
+# grunk-occt's own src/geom/geom_extras.hpp, each duplicating the identical
+# cast_to_element/convert_one conversion logic -
+#   v1 = occt.Geom_Curve.debug_member_novoverload(...) - usertype member function,
+#        but NO sol::overload (tests the member-function-registration factor alone)
+#   v2 = occt.debug_namespace_overload(...) - plain namespace function, but WITH
+#        sol::overload(from_table, from_varargs) (tests the overload factor alone)
+#   v3 = occt.Geom_Curve.debug_member_overload(...) - both together (expected to
+#        fail, reproducing the real as_vec exactly - a sanity check that this
+#        hand-rolled copy is a faithful equivalent, not a coincidentally-different
+#        bug)
+# Whichever of v1/v2 fails on macOS (matching v3's expected failure) identifies
+# the actual culprit factor; if both v1 and v2 succeed despite v3 failing, the
+# bug needs both factors together, not either alone.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+steps: |
+  pts1 = occt.gp_Pnt.as_vec(
+    occt.gp_Pnt.new(0, 0, 0),
+    occt.gp_Pnt.new(1, 1, 0),
+    occt.gp_Pnt.new(2, 0, 0),
+    occt.gp_Pnt.new(3, 1, 0)
+  )
+  curve1 = occt.GeomAPI_PointsToBSpline.new(pts1):Curve()
+
+  pts2 = occt.gp_Pnt.as_vec(
+    occt.gp_Pnt.new(0, 0, 1),
+    occt.gp_Pnt.new(1, 1, 1),
+    occt.gp_Pnt.new(2, 0, 1),
+    occt.gp_Pnt.new(3, 1, 1)
+  )
+  curve2 = occt.GeomAPI_PointsToBSpline.new(pts2):Curve()
+
+  v1 = occt.Geom_Curve.debug_member_novoverload(curve1, curve2)
+  v2 = occt.debug_namespace_overload(curve1, curve2)
+  v3 = occt.Geom_Curve.debug_member_overload(curve1, curve2)
+outputs:
+  v1: v1
+  v2: v2
+  v3: v3
