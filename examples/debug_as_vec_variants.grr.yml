@@ -22,9 +22,19 @@
 #        fail, reproducing the real as_vec exactly - a sanity check that this
 #        hand-rolled copy is a faithful equivalent, not a coincidentally-different
 #        bug)
-# Whichever of v1/v2 fails on macOS (matching v3's expected failure) identifies
-# the actual culprit factor; if both v1 and v2 succeed despite v3 failing, the
-# bug needs both factors together, not either alone.
+# All three (v1/v2/v3) PASSED on macOS (2026-11-13 CI run), including v3 -
+# despite being structurally identical to the real add_member_function("as_vec",
+# sol::overload(...)) call - while the real occt.Geom_Curve.as_vec(...) still
+# fails on the same curves. Neither member-function registration nor
+# sol::overload is the cause. The one remaining structural difference: the real
+# with_std_vector() builds cast_to_element ONCE at *registration* time (a single
+# sol::protected_function captured by value, reused for the process lifetime),
+# while v1/v2/v3 rebuild it fresh on every call (plugin_namespace has no
+# lua_state() accessor, so this was a pragmatic workaround). v4 =
+# occt.Geom_Curve.debug_member_overload_persistent_cast(...) removes that
+# difference too, building cast_to_element once via the usertype_proxy's own
+# ut.lua_state() - testing whether a persistent, registration-time-captured
+# closure is what actually breaks on macOS.
 uses:
   grunk: 0.5.0
   occt: 0.1.0
@@ -48,7 +58,9 @@ steps: |
   v1 = occt.Geom_Curve.debug_member_novoverload(curve1, curve2)
   v2 = occt.debug_namespace_overload(curve1, curve2)
   v3 = occt.Geom_Curve.debug_member_overload(curve1, curve2)
+  v4 = occt.Geom_Curve.debug_member_overload_persistent_cast(curve1, curve2)
 outputs:
   v1: v1
   v2: v2
   v3: v3
+  v4: v4

@@ -72,15 +72,16 @@ def run_as_vec_variants_probe(state: "grunk.state", failures: list) -> None:
     # TEMP DIAGNOSTIC (remove alongside debug_as_vec_variants.grr.yml and
     # geom_extras.hpp's own debug probes once the macOS-only
     # occt.Geom_Curve.as_vec(...) failure is root-caused - see that recipe's own
-    # top comment). Each of v1/v2/v3 is read independently so one probe's failure
-    # doesn't prevent the others from reporting in this same CI log.
+    # top comment). Each of v1/v2/v3/v4 is read independently so one probe's
+    # failure doesn't prevent the others from reporting in this same CI log.
     recipe_path = EXAMPLES_DIR / "debug_as_vec_variants.grr.yml"
     print(f"Running {recipe_path.name} ...")
     recipe = state.read(str(recipe_path))
     for output_name, label in (
         ("v1", "debug_member_novoverload (member fn, no overload)"),
         ("v2", "debug_namespace_overload (namespace fn, with overload)"),
-        ("v3", "debug_member_overload (member fn, with overload - expected to fail, matches real as_vec)"),
+        ("v3", "debug_member_overload (member fn, with overload - identical shape to real as_vec, but passed on macOS)"),
+        ("v4", "debug_member_overload_persistent_cast (v3 + cast_to_element built once at registration time, like the real with_std_vector)"),
     ):
         try:
             recipe.get_output(output_name).value()
