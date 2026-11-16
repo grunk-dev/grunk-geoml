@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Jan Kleinert <jan.kleinert@dlr.de>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+# TEMP DIAGNOSTIC (remove once the macOS-only occt.Geom_Curve.as_vec(...) failure
+# is root-caused - see DESIGN.md/the grunk-geoml CI issue this is chasing):
+# wing_loft.grr.yml/wing_fuselage_configuration.grr.yml both hit "Cannot create
+# std::vector. The values cannot be converted to the expected usertype
+# occt.Geom_Curve" on macOS only - in every failing case so far, the curve
+# VALUES being converted were pushed to Lua from geoml_plugin.dylib's own code
+# (geoml.interpolate_points_to_b_spline_curve, src/transform_extras.hpp's own
+# transform_curve), while the as_vec/with_std_vector mechanism doing the
+# converting is registered inside occt_plugin.dylib's own translation unit
+# (grunk-occt's src/geom/geom_extras.hpp). Both plugins are separate
+# `dlopen(..., RTLD_LOCAL)` images (grunk/plugin/loader.cpp) - a real,
+# documented hazard class for duplicated/non-merged per-type state across
+# independently loaded macOS dylibs (see grunk/CLAUDE.md's own "Linking" section,
+# there discussing grunk's own symbols specifically, not yet confirmed for
+# sol2's own per-type unique-usertype registration).
+#
+# This recipe tests that hypothesis directly: every curve here is built
+# entirely via occt.* calls (occt.GeomAPI_PointsToBSpline, same dylib as
+# occt.Geom_Curve.as_vec's own with_std_vector registration) - no geoml.*
+# curve-producing call anywhere upstream of the as_vec call below. If this
+# recipe passes on macOS while wing_loft/wing_fuselage_configuration still
+# fail, that confirms the failure is specifically about the curve's *origin*
+# plugin, not a general as_vec/variadic_args bug. geoml.interpolate_curves is
+# still used downstream of the as_vec call (to reach a real face/"ok" output
+# through the recipe's forced-evaluation path, exactly mirroring wing_loft's
+# own shape) - it only consumes the already-built std::vector, it does not
+# affect where curve1/curve2 themselves originated.
+uses:
+  grunk: 0.5.0
+  occt: 0.1.0
+  geoml: 0.1.0
+parameters:
+  tol: 1.0e-8
+steps: |
+  pts1 = occt.gp_Pnt.as_vec(
+    occt.gp_Pnt.new(0, 0, 0),
+    occt.gp_Pnt.new(1, 1, 0),
+    occt.gp_Pnt.new(2, 0, 0),
+    occt.gp_Pnt.new(3, 1, 0)
+  )
+  curve1 = occt.GeomAPI_PointsToBSpline.new(pts1):Curve()
+
+  pts2 = occt.gp_Pnt.as_vec(
+    occt.gp_Pnt.new(0, 0, 1),
+    occt.gp_Pnt.new(1, 1, 1),
+    occt.gp_Pnt.new(2, 0, 1),
+    occt.gp_Pnt.new(3, 1, 1)
+  )
+  curve2 = occt.GeomAPI_PointsToBSpline.new(pts2):Curve()
+
+  cv = occt.Geom_Curve.as_vec(curve1, curve2)
+  loft_surface = geoml.interpolate_curves(cv)
+
+  face = occt.BRepBuilderAPI_MakeFace.new(loft_surface, tol):Face()
+
+  ok = occt.export_brep(face, "debug_cross_plugin_as_vec.brep")
+outputs:
+  face: face
+  ok: ok

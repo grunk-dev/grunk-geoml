@@ -86,14 +86,19 @@ jobs:
       # `echo` (confirmed directly: silently wrote an empty sha instead of
       # erroring), so this still fails loudly on an empty sha rather than going
       # back to that one-liner.
+      # TEMP DIAGNOSTIC (revert to "main" once the macOS-only occt.Geom_Curve.as_vec(...)
+      # investigation is done - see debug_as_vec_variants.grr.yml's own top comment):
+      # points at grunk-occt's own "diagnostics" branch instead of "main", to pull in
+      # its temporary debug_member_novoverload/debug_namespace_overload/
+      # debug_member_overload probes (src/geom/geom_extras.hpp).
       - name: Get grunk-occt HEAD SHA
         id: occt-sha
         shell: bash
         run: |
           set -euo pipefail
-          sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt.git main | cut -f1)
+          sha=$(git ls-remote https://github.com/grunk-dev/grunk-occt.git diagnostics | cut -f1)
           if [ -z "$sha" ]; then
-            echo "Could not resolve grunk-occt's main HEAD SHA" >&2
+            echo "Could not resolve grunk-occt's diagnostics HEAD SHA" >&2
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
