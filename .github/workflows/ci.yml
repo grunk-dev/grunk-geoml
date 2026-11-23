@@ -206,8 +206,15 @@ jobs:
       - name: Configure
         run: pixi run -e ad configure Release
 
+      # One compile job at a time, here and in the grunk-occt sibling build
+      # below: AD translation units are huge (grunk-occt's, measured locally,
+      # peak at ~8.8 GB and ~6.4 GB, several more at ~2 GB), and the `build`
+      # task's bare `--parallel` lets Ninja run ~6 jobs on a 4-core/16 GB
+      # hosted runner - grunk-occt's AD job was repeatedly killed mid-build
+      # (exit code 143 / "lost communication"). Later steps' depends-on
+      # `build` then finds nothing left to do.
       - name: Build
-        run: pixi run -e ad build
+        run: pixi run -e ad cmake --build build-ad --parallel 1
 
       - name: Test
         run: pixi run -e ad test
@@ -279,7 +286,8 @@ jobs:
           pixi run -e ad install_adolc
           pixi run -e ad install_adocct
           pixi run -e ad configure Release
-          pixi run -e ad build
+          # One compile job at a time, same reason as this job's own Build step.
+          pixi run -e ad cmake --build build-ad --parallel 1
 
       - name: Run examples
         run: pixi run -e ad run_examples
